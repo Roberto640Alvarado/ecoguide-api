@@ -1,0 +1,342 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  STUDENT
+  TEACHER
+}
+
+enum FlashCardType {
+  GASTRONOMY
+  FLORA_FAUNA
+  ENVIRONMENTAL
+  CURIOUS_FACT
+  VOCABULARY
+}
+
+enum StudentPhase {
+  INFORMATION
+  FLASHCARDS
+  SPEAKING
+  CHATBOT
+  TEST
+  COMPLETED
+}
+
+// ============================================
+// USERS
+// ============================================
+
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  lastName  String
+  email     String   @unique
+  password  String
+  avatarUrl String?
+  role      UserRole @default(STUDENT)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  studentProgress       StudentProgress[]
+  studentTests          StudentTest[]
+  speakingResults       SpeakingResult[]
+  chatbotConversations  ChatbotConversation[]
+  protectedAreasCreated ProtectedArea[] @relation("CreatedBy")
+  passwordResetCodes    PasswordResetCode[]
+
+  @@map("users")
+}
+
+// ============================================
+// PROTECTED AREAS
+// ============================================
+
+model ProtectedArea {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String
+  latitude    Float
+  longitude   Float
+  images      String[] // URLs de Cloudinary
+  isPublished Boolean  @default(false)
+  createdBy   String   @db.ObjectId
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  creator                User                   @relation("CreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
+  flashCards             FlashCard[]
+  speakingPractices      SpeakingPractice[]
+  chatbotConfigs         ChatbotConfig[]
+  tests                  Test[]
+  studentProgress        StudentProgress[]
+  speakingResults        SpeakingResult[]
+  chatbotConversations   ChatbotConversation[]
+  studentTests           StudentTest[]
+
+  @@map("protected_areas")
+}
+
+// ============================================
+// FLASH CARDS
+// ============================================
+
+model FlashCard {
+  id                String        @id @default(auto()) @map("_id") @db.ObjectId
+  protectedAreaId   String        @db.ObjectId
+  type              FlashCardType
+  title             String
+  content           String
+  image             String?
+  order             Int
+  
+  // Solo para tipo ENVIRONMENTAL
+  question          String?
+  options           String[]
+  correctAnswer     String?
+
+  createdAt         DateTime      @default(now())
+
+  // Relaciones
+  protectedArea     ProtectedArea @relation(fields: [protectedAreaId], references: [id], onDelete: Cascade)
+
+  @@map("flash_cards")
+}
+
+// ============================================
+// SPEAKING PRACTICES
+// ============================================
+
+model SpeakingPractice {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  protectedAreaId   String   @db.ObjectId
+  title             String
+  instructions      String
+  providerId        String   @db.ObjectId
+  model             String
+  prompt            String
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+
+  // Relaciones
+  protectedArea     ProtectedArea    @relation(fields: [protectedAreaId], references: [id], onDelete: Cascade)
+  aiProvider        AIProvider       @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  speakingResults   SpeakingResult[]
+
+  @@map("speaking_practices")
+}
+
+// ============================================
+// CHATBOT CONFIGS
+// ============================================
+
+model ChatbotConfig {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  protectedAreaId   String   @db.ObjectId @unique
+  providerId        String   @db.ObjectId
+  model             String
+  systemPrompt      String
+  welcomeMessage    String
+  temperature       Float    @default(0.7)
+  maxTokens         Int      @default(2048)
+  isActive          Boolean  @default(true)
+
+  // Relaciones
+  protectedArea     ProtectedArea @relation(fields: [protectedAreaId], references: [id], onDelete: Cascade)
+  aiProvider        AIProvider    @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@map("chatbot_configs")
+}
+
+// ============================================
+// TESTS
+// ============================================
+
+model Test {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  protectedAreaId   String   @db.ObjectId
+  title             String
+  description       String
+  maxAttempts       Int
+  passingScore      Int
+  questions         Question[]
+  createdAt         DateTime @default(now())
+
+  // Relaciones
+  protectedArea     ProtectedArea @relation(fields: [protectedAreaId], references: [id], onDelete: Cascade)
+  studentTests      StudentTest[]
+
+  @@map("tests")
+}
+
+type Question {
+  id              String
+  question        String
+  options         String[]
+  correctAnswer   String
+  score           Int
+}
+
+// ============================================
+// STUDENT PROGRESS
+// ============================================
+
+model StudentProgress {
+  id                  String       @id @default(auto()) @map("_id") @db.ObjectId
+  studentId           String       @db.ObjectId
+  protectedAreaId     String       @db.ObjectId
+  currentPhase        StudentPhase @default(INFORMATION)
+  completed           Boolean      @default(false)
+  highestScore        Int          @default(0)
+  attemptsUsed        Int          @default(0)
+  attemptsRemaining   Int          @default(5)
+  completedFlashcards Boolean      @default(false)
+  completedSpeaking   Boolean      @default(false)
+  completedChatbot    Boolean      @default(false)
+  completedTest       Boolean      @default(false)
+  lastAccess          DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  // Relaciones
+  student           User          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  protectedArea     ProtectedArea @relation(fields: [protectedAreaId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, protectedAreaId])
+  @@map("student_progress")
+}
+
+// ============================================
+// SPEAKING RESULTS
+// ============================================
+
+model SpeakingResult {
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  studentId           String   @db.ObjectId
+  protectedAreaId     String   @db.ObjectId
+  speakingPracticeId  String   @db.ObjectId
+  audioUrl            String
+  transcription       String
+  feedback            String
+  score               Int
+  createdAt           DateTime @default(now())
+
+  // Relaciones
+  student             User              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  protectedArea       ProtectedArea     @relation(fields: [protectedAreaId], references: [id], onDelete: Cascade)
+  speakingPractice    SpeakingPractice  @relation(fields: [speakingPracticeId], references: [id], onDelete: Cascade)
+
+  @@map("speaking_results")
+}
+
+// ============================================
+// CHATBOT CONVERSATIONS
+// ============================================
+
+model ChatbotConversation {
+  id                String        @id @default(auto()) @map("_id") @db.ObjectId
+  studentId         String        @db.ObjectId
+  protectedAreaId   String        @db.ObjectId
+  messages          Message[]
+  startedAt         DateTime      @default(now())
+  endedAt           DateTime?
+  feedback          String?
+
+  // Relaciones
+  student           User          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  protectedArea     ProtectedArea @relation(fields: [protectedAreaId], references: [id], onDelete: Cascade)
+
+  @@map("chatbot_conversations")
+}
+
+type Message {
+  id        String
+  role      String // "user" | "assistant"
+  message   String
+  createdAt DateTime
+}
+
+// ============================================
+// STUDENT TESTS
+// ============================================
+
+model StudentTest {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  studentId         String   @db.ObjectId
+  protectedAreaId   String   @db.ObjectId
+  testId            String   @db.ObjectId
+  attempt           Int
+  score             Int
+  answers           Answer[]
+  createdAt         DateTime @default(now())
+
+  // Relaciones
+  student           User          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  protectedArea     ProtectedArea @relation(fields: [protectedAreaId], references: [id], onDelete: Cascade)
+  test              Test          @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@map("student_tests")
+}
+
+type Answer {
+  questionId      String
+  studentAnswer   String
+  isCorrect       Boolean
+}
+
+// ============================================
+// AI PROVIDERS
+// ============================================
+
+model AIProvider {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  providerName      String   @unique
+  apiKeyEncrypted   String
+  isActive          Boolean  @default(true)
+  models            Model[]
+  createdAt         DateTime @default(now())
+
+  // Relaciones
+  speakingPractices SpeakingPractice[]
+  chatbotConfigs    ChatbotConfig[]
+
+  @@map("ai_providers")
+}
+
+type Model {
+  id        String
+  name      String
+  model     String
+  isActive  Boolean @default(true)
+}
+
+// ============================================
+// PASSWORD RESET CODES
+// ============================================
+
+model PasswordResetCode {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  code      String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // Relaciones
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_codes")
+}
