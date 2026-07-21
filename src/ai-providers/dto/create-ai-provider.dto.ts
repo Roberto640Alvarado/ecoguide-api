@@ -1,8 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { AIProviderType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -15,6 +17,18 @@ export class CreateAIProviderDto {
   @IsString()
   @IsNotEmpty({ message: 'El nombre del proveedor es requerido.' })
   providerName: string;
+
+  @ApiProperty({
+    enum: AIProviderType,
+    description:
+      'Vendor real del proveedor (determina qué integración de IA se usa ' +
+      'para llamarlo). providerName es solo la etiqueta que el docente le ' +
+      'da; providerType es el que importa para la lógica interna.',
+  })
+  @IsEnum(AIProviderType, {
+    message: 'El tipo de proveedor no es válido.',
+  })
+  providerType: AIProviderType;
 
   @ApiProperty({
     description:

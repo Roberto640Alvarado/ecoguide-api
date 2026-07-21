@@ -1,3 +1,5 @@
+import { AIProviderType } from '@prisma/client';
+
 export const AI_PROVIDER_SORTABLE_FIELDS = [
   'providerName',
   'createdAt',
@@ -24,6 +26,7 @@ export interface ModelData {
 
 export interface CreateAIProviderData {
   providerName: string;
+  providerType: AIProviderType;
   apiKeyEncrypted: string;
   isActive?: boolean;
   models?: ModelData[];
@@ -31,6 +34,7 @@ export interface CreateAIProviderData {
 
 export interface UpdateAIProviderData {
   providerName?: string;
+  providerType?: AIProviderType;
   apiKeyEncrypted?: string;
   isActive?: boolean;
 }

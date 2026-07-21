@@ -25,6 +25,17 @@ import { UploadFileResponseDoc } from '../doc/upload-file-response.doc';
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
+const MAX_AUDIO_SIZE_BYTES = 15 * 1024 * 1024;
+const ALLOWED_AUDIO_MIME_TYPES = [
+  'audio/webm',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/mpeg',
+  'audio/mp4',
+  'audio/ogg',
+  'audio/x-m4a',
+];
+
 /**
  * Endpoint genérico de subida de imágenes a Cloudinary, reutilizable por
  * cualquier módulo (ProtectedAreas, FlashCards, etc.). Solo TEACHER puede
@@ -87,6 +98,62 @@ export class UploadFilesController {
 
     return {
       message: 'Imagen subida correctamente.',
+      data: { url },
+    };
+  }
+
+  @Post('audio')
+  @Roles(UserRole.STUDENT)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary:
+      'Sube un audio de práctica de speaking a Cloudinary y devuelve su URL.',
+  })
+  @ApiQuery({
+    name: 'folder',
+    required: false,
+    description:
+      'Subcarpeta dentro de "ecoguide/" para organizar los audios (ej. speaking-results).',
+  })
+  @ApiResponse({ status: 201, description: 'Audio subido correctamente.' })
+  @ApiResponse({
+    status: 400,
+    description: 'Archivo faltante o formato no permitido.',
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_AUDIO_SIZE_BYTES },
+      fileFilter: (_req, file, callback) => {
+        if (!ALLOWED_AUDIO_MIME_TYPES.includes(file.mimetype)) {
+          callback(
+            new BadRequestException(
+              'Solo se permiten audios WEBM, WAV, MP3, MP4 u OGG.',
+            ),
+            false,
+          );
+          return;
+        }
+
+        callback(null, true);
+      },
+    }),
+  )
+  async uploadAudio(
+    @UploadedFile() file: Express.Multer.File,
+    @Query('folder') folder?: string,
+  ): Promise<{ message: string; data: UploadFileResponseDoc }> {
+    if (!file) {
+      throw new BadRequestException('Debes adjuntar un archivo.');
+    }
+
+    const url = await this.uploadFilesService.uploadAudio(
+      file,
+      folder ? `ecoguide/${folder}` : 'ecoguide',
+    );
+
+    return {
+      message: 'Audio subido correctamente.',
       data: { url },
     };
   }

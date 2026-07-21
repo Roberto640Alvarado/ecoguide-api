@@ -96,6 +96,7 @@ export class AIProvidersService {
 
     const provider = await this.aiProvidersRepository.create({
       providerName: dto.providerName,
+      providerType: dto.providerType,
       apiKeyEncrypted,
       isActive: dto.isActive,
       models: dto.models?.map((model) => this.toModelData(model)),
@@ -124,6 +125,7 @@ export class AIProvidersService {
 
     const updated = await this.aiProvidersRepository.update(id, {
       providerName: dto.providerName,
+      providerType: dto.providerType,
       isActive: dto.isActive,
       apiKeyEncrypted: dto.apiKey
         ? this.apiKeyEncryptionService.encrypt(dto.apiKey)

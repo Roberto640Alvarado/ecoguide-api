@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Patch,
   Post,
 } from '@nestjs/common';
 import {
@@ -22,6 +23,7 @@ import { LoginDto } from '../dto/login.dto';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { ResetPasswordDto } from '../dto/reset-password.dto';
 import { AuthResponseDoc } from '../doc/auth-response.doc';
+import { UpdateProfileDto } from '../../users/dto/update-profile.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -74,6 +76,29 @@ export class AuthController {
     const data = await this.authService.getProfile(userId);
 
     return { message: 'Usuario obtenido correctamente.', data };
+  }
+
+  @Patch('me')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Actualiza el perfil propio (nombre, apellido, avatar). El correo nunca se puede cambiar aquí.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Perfil actualizado correctamente.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Token inválido, expirado o no proporcionado.',
+  })
+  async updateProfile(
+    @User('id') userId: string,
+    @Body() dto: UpdateProfileDto,
+  ): Promise<{ message: string; data: UserResponseDoc }> {
+    const data = await this.authService.updateProfile(userId, dto);
+
+    return { message: 'Perfil actualizado correctamente.', data };
   }
 
   @Public()

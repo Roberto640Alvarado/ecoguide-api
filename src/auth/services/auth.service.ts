@@ -9,6 +9,7 @@ import { JwtPayload } from '../../common/interfaces/jwt-payload.interface';
 import { RegisterDto } from '../dto/register.dto';
 import { LoginDto } from '../dto/login.dto';
 import { AuthResponseDoc } from '../doc/auth-response.doc';
+import { UpdateProfileDto } from '../../users/dto/update-profile.dto';
 
 @Injectable()
 export class AuthService {
@@ -64,6 +65,13 @@ export class AuthService {
     return plainToInstance(UserResponseDoc, user, {
       excludeExtraneousValues: true,
     });
+  }
+
+  async updateProfile(
+    userId: string,
+    dto: UpdateProfileDto,
+  ): Promise<UserResponseDoc> {
+    return this.usersService.updateProfile(userId, dto);
   }
 
   async forgotPassword(email: string): Promise<void> {

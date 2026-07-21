@@ -34,6 +34,17 @@ enum StudentPhase {
   COMPLETED
 }
 
+// Vendor real detrás de un AIProvider (providerName es solo la etiqueta que
+// el docente le pone, ej. "Gemini de producción" — providerType determina
+// qué AIProviderStrategy concreta usar para llamar a la API real).
+enum AIProviderType {
+  GEMINI
+  CLAUDE
+  OPENAI
+  MISTRAL
+  DEEPSEEK
+}
+
 // ============================================
 // USERS
 // ============================================
@@ -123,7 +134,9 @@ model FlashCard {
 
 model SpeakingPractice {
   id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  protectedAreaId   String   @db.ObjectId
+  // Una sola práctica de speaking por área (config del docente); igual
+  // patrón 1:1 que ChatbotConfig.protectedAreaId.
+  protectedAreaId   String   @unique @db.ObjectId
   title             String
   instructions      String
   providerId        String   @db.ObjectId
@@ -168,12 +181,15 @@ model ChatbotConfig {
 
 model Test {
   id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  protectedAreaId   String   @db.ObjectId
+  // Un solo examen por área (config del docente); igual patrón 1:1 que
+  // SpeakingPractice/ChatbotConfig, pero con N preguntas embebidas.
+  protectedAreaId   String   @unique @db.ObjectId
   title             String
   description       String
   maxAttempts       Int
   passingScore      Int
   questions         Question[]
+  isActive          Boolean  @default(true)
   createdAt         DateTime @default(now())
 
   // Relaciones
@@ -303,12 +319,13 @@ type Answer {
 // ============================================
 
 model AIProvider {
-  id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  providerName      String   @unique
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  providerName      String          @unique
+  providerType      AIProviderType
   apiKeyEncrypted   String
-  isActive          Boolean  @default(true)
+  isActive          Boolean         @default(true)
   models            Model[]
-  createdAt         DateTime @default(now())
+  createdAt         DateTime        @default(now())
 
   // Relaciones
   speakingPractices SpeakingPractice[]

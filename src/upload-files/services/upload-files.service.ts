@@ -21,29 +21,60 @@ export class UploadFilesService {
     file: Express.Multer.File,
     folder: string,
   ): Promise<string> {
-    const result = await new Promise<UploadApiResponse>(
-      (resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          { folder, resource_type: 'image' },
-          (error, uploadResult) => {
-            if (error || !uploadResult) {
-              reject(
-                error instanceof Error
-                  ? error
-                  : new InternalServerErrorException(
-                      'No se pudo subir la imagen a Cloudinary.',
-                    ),
-              );
-              return;
-            }
+    const result = await new Promise<UploadApiResponse>((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { folder, resource_type: 'image' },
+        (error, uploadResult) => {
+          if (error || !uploadResult) {
+            reject(
+              error instanceof Error
+                ? error
+                : new InternalServerErrorException(
+                    'No se pudo subir la imagen a Cloudinary.',
+                  ),
+            );
+            return;
+          }
 
-            resolve(uploadResult);
-          },
-        );
+          resolve(uploadResult);
+        },
+      );
 
-        uploadStream.end(file.buffer);
-      },
-    );
+      uploadStream.end(file.buffer);
+    });
+
+    return result.secure_url;
+  }
+
+  /**
+   * Sube un audio (grabación de práctica de speaking del estudiante).
+   * Cloudinary clasifica los archivos de audio bajo resource_type "video".
+   */
+  async uploadAudio(
+    file: Express.Multer.File,
+    folder: string,
+  ): Promise<string> {
+    const result = await new Promise<UploadApiResponse>((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { folder, resource_type: 'video' },
+        (error, uploadResult) => {
+          if (error || !uploadResult) {
+            reject(
+              error instanceof Error
+                ? error
+                : new InternalServerErrorException(
+                    'No se pudo subir el audio a Cloudinary.',
+                  ),
+            );
+            return;
+          }
+
+          resolve(uploadResult);
+        },
+      );
+
+      uploadStream.end(file.buffer);
+    });
 
     return result.secure_url;
   }

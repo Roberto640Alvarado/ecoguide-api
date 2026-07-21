@@ -13,6 +13,12 @@ import { AuthModule } from './auth/auth.module';
 import { ProtectedAreasModule } from './protected-areas/protected-areas.module';
 import { FlashCardsModule } from './flash-cards/flash-cards.module';
 import { AIProvidersModule } from './ai-providers/ai-providers.module';
+import { SpeakingPracticesModule } from './speaking-practices/speaking-practices.module';
+import { ChatbotModule } from './chatbot/chatbot.module';
+import { SpeakingResultsModule } from './speaking-results/speaking-results.module';
+import { ChatbotConversationsModule } from './chatbot-conversations/chatbot-conversations.module';
+import { TestsModule } from './tests/tests.module';
+import { StudentTestsModule } from './student-tests/student-tests.module';
 import { UploadFilesModule } from './upload-files/upload-files.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -43,6 +49,12 @@ import { buildLoggerConfig } from './common/config/logger.config';
     ProtectedAreasModule,
     FlashCardsModule,
     AIProvidersModule,
+    SpeakingPracticesModule,
+    ChatbotModule,
+    SpeakingResultsModule,
+    ChatbotConversationsModule,
+    TestsModule,
+    StudentTestsModule,
     UploadFilesModule,
   ],
   controllers: [AppController],

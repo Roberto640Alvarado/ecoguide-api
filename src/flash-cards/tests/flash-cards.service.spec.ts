@@ -209,7 +209,7 @@ describe('FlashCardsService', () => {
         type: FlashCardType.FLORA_FAUNA,
         title: 'Título',
         content: 'Contenido',
-      } as never);
+      });
 
       expect(flashCardsRepositoryMock.countByAreaAndType).toHaveBeenCalledWith(
         VALID_AREA_ID,
@@ -233,7 +233,9 @@ describe('FlashCardsService', () => {
         order: 42,
       });
 
-      expect(flashCardsRepositoryMock.countByAreaAndType).not.toHaveBeenCalled();
+      expect(
+        flashCardsRepositoryMock.countByAreaAndType,
+      ).not.toHaveBeenCalled();
       expect(flashCardsRepositoryMock.create).toHaveBeenCalledWith(
         expect.objectContaining({ order: 42 }),
       );
@@ -318,7 +320,9 @@ describe('FlashCardsService', () => {
 
       await service.update(VALID_ID, { title: 'Nuevo' });
 
-      expect(flashCardsRepositoryMock.countByAreaAndType).not.toHaveBeenCalled();
+      expect(
+        flashCardsRepositoryMock.countByAreaAndType,
+      ).not.toHaveBeenCalled();
       expect(flashCardsRepositoryMock.update).toHaveBeenCalledWith(VALID_ID, {
         title: 'Nuevo',
       });

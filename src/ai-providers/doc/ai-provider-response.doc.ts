@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { AIProviderType } from '@prisma/client';
 import { Exclude, Expose, Type } from 'class-transformer';
 import { ModelResponseDoc } from './model-response.doc';
 
@@ -15,6 +16,10 @@ export class AIProviderResponseDoc {
   @Expose()
   @ApiProperty()
   providerName: string;
+
+  @Expose()
+  @ApiProperty({ enum: AIProviderType })
+  providerType: AIProviderType;
 
   @Expose()
   @ApiProperty()

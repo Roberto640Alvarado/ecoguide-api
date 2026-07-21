@@ -4,6 +4,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
+import { AIProviderType } from '@prisma/client';
 import { AIProvidersService } from '../services/ai-providers.service';
 import { AIProvidersRepository } from '../repositories/ai-providers.repository';
 import { ApiKeyEncryptionService } from '../services/api-key-encryption.service';
@@ -25,6 +26,7 @@ describe('AIProvidersService', () => {
   const baseProvider = {
     id: VALID_ID,
     providerName: 'Google Gemini',
+    providerType: AIProviderType.GEMINI,
     apiKeyEncrypted: 'iv:tag:cipher',
     isActive: true,
     models: [baseModel],
@@ -109,7 +111,11 @@ describe('AIProvidersService', () => {
       );
 
       await expect(
-        service.create({ providerName: 'Google Gemini', apiKey: 'sk-123' }),
+        service.create({
+          providerName: 'Google Gemini',
+          providerType: AIProviderType.GEMINI,
+          apiKey: 'sk-123',
+        }),
       ).rejects.toThrow(ConflictException);
       expect(aiProvidersRepositoryMock.create).not.toHaveBeenCalled();
     });
@@ -119,7 +125,11 @@ describe('AIProvidersService', () => {
       apiKeyEncryptionServiceMock.encrypt.mockReturnValue('iv:tag:cipher');
       aiProvidersRepositoryMock.create.mockResolvedValue(baseProvider);
 
-      await service.create({ providerName: 'Google Gemini', apiKey: 'sk-123' });
+      await service.create({
+        providerName: 'Google Gemini',
+        providerType: AIProviderType.GEMINI,
+        apiKey: 'sk-123',
+      });
 
       expect(apiKeyEncryptionServiceMock.encrypt).toHaveBeenCalledWith(
         'sk-123',
@@ -136,6 +146,7 @@ describe('AIProvidersService', () => {
 
       await service.create({
         providerName: 'Google Gemini',
+        providerType: AIProviderType.GEMINI,
         apiKey: 'sk-123',
         models: [{ name: 'Gemini 1.5 Flash', model: 'gemini-1.5-flash' }],
       });

@@ -13,6 +13,7 @@ import { USER_SORTABLE_FIELDS } from '../types/find-users-params.type';
 import { UserResponseDoc } from '../doc/user-response.doc';
 import { FindUsersQueryDto } from '../dto/find-users-query.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
+import { UpdateProfileDto } from '../dto/update-profile.dto';
 import {
   PaginatedResult,
   parseSort,
@@ -126,6 +127,25 @@ export class UsersService {
 
       dto.email = email;
     }
+
+    const updated = await this.usersRepository.update(id, dto);
+
+    return plainToInstance(UserResponseDoc, updated, {
+      excludeExtraneousValues: true,
+    });
+  }
+
+  /**
+   * Auto-edición de perfil (ver UpdateProfileDto): a propósito no toca
+   * `email`/`role`/`isActive` — nunca se reciben en este DTO, así que no
+   * hace falta el chequeo de conflicto de correo que sí hace `update()`
+   * para el panel TEACHER.
+   */
+  async updateProfile(
+    id: string,
+    dto: UpdateProfileDto,
+  ): Promise<UserResponseDoc> {
+    await this.getUserOrThrow(id);
 
     const updated = await this.usersRepository.update(id, dto);
 

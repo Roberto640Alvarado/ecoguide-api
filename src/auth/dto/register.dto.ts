@@ -8,19 +8,9 @@ import {
   Matches,
   MinLength,
 } from 'class-validator';
+import { AVATAR_OPTIONS } from '../../common/constants/avatar-options.constant';
 
 const PASSWORD_REGEX = /^(?=.*[a-zA-Z])(?=.*\d).+$/;
-
-/**
- * Avatares predefinidos disponibles en el registro. Son rutas de assets
- * estáticos servidos por ecoguide-app (no archivos subidos) — cuando exista
- * el módulo UploadFiles, esta whitelist podrá reemplazarse por URLs reales
- * de Cloudflare R2 sin cambiar el shape del campo.
- */
-export const AVATAR_OPTIONS = [
-  '/avatars/avatar-boy.png',
-  '/avatars/avatar-girl.png',
-] as const;
 
 export class RegisterDto {
   @ApiProperty({ example: 'Ana' })
