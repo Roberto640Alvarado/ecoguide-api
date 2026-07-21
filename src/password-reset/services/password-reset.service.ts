@@ -48,11 +48,23 @@ export class PasswordResetService {
 
     await this.passwordResetRepository.create(user.id, code, expiresAt);
 
-    await this.mailService.sendPasswordResetCode(user.email, {
-      name: user.name,
-      code,
-      expiresInMinutes: this.expirationMinutes,
-    });
+    try {
+      await this.mailService.sendPasswordResetCode(user.email, {
+        name: user.name,
+        code,
+        expiresInMinutes: this.expirationMinutes,
+      });
+    } catch (error) {
+      // No se debe filtrar al cliente si el envío de correo falló (rompería
+      // la respuesta genérica de este endpoint y además delataría que el
+      // correo sí está registrado). El código ya quedó creado en base de
+      // datos; el error queda solo registrado para diagnóstico interno.
+      this.logger.error(
+        `No se pudo enviar el correo de recuperación a ${user.email}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   /**

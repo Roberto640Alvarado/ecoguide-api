@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { Logger } from 'nestjs-pino';
 import * as figlet from 'figlet';
 import { AppModule } from './app.module';
 
@@ -27,11 +28,18 @@ async function printBanner(): Promise<void> {
 }
 
 async function bootstrap() {
-  const logger = new Logger('EcoGuide');
-
   await printBanner();
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+
+  const logger = app.get(Logger);
+  app.useLogger(logger);
+
+  app.enableCors({
+    origin: true,
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({

@@ -6,4 +6,5 @@ export interface CreateUserData {
   email: string;
   password: string;
   role?: UserRole;
+  avatarUrl?: string;
 }

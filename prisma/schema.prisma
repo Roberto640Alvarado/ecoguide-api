@@ -17,6 +17,7 @@ enum UserRole {
 }
 
 enum FlashCardType {
+  WELCOME
   GASTRONOMY
   FLORA_FAUNA
   ENVIRONMENTAL

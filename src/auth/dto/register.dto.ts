@@ -1,13 +1,26 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsEmail,
+  IsIn,
   IsNotEmpty,
+  IsOptional,
   IsString,
   Matches,
   MinLength,
 } from 'class-validator';
 
 const PASSWORD_REGEX = /^(?=.*[a-zA-Z])(?=.*\d).+$/;
+
+/**
+ * Avatares predefinidos disponibles en el registro. Son rutas de assets
+ * estáticos servidos por ecoguide-app (no archivos subidos) — cuando exista
+ * el módulo UploadFiles, esta whitelist podrá reemplazarse por URLs reales
+ * de Cloudflare R2 sin cambiar el shape del campo.
+ */
+export const AVATAR_OPTIONS = [
+  '/avatars/avatar-boy.png',
+  '/avatars/avatar-girl.png',
+] as const;
 
 export class RegisterDto {
   @ApiProperty({ example: 'Ana' })
@@ -31,4 +44,13 @@ export class RegisterDto {
     message: 'La contraseña debe contener al menos una letra y un número.',
   })
   password: string;
+
+  @ApiProperty({
+    example: AVATAR_OPTIONS[0],
+    required: false,
+    enum: AVATAR_OPTIONS,
+  })
+  @IsOptional()
+  @IsIn(AVATAR_OPTIONS, { message: 'El avatar seleccionado no es válido.' })
+  avatarUrl?: string;
 }

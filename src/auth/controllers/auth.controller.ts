@@ -12,6 +12,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle, minutes } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator';
 import { User } from '../../common/decorators/user.decorator';
 import { UserResponseDoc } from '../../users/doc/user-response.doc';
@@ -28,6 +29,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: minutes(10) } })
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Registra un nuevo estudiante.' })
@@ -42,6 +44,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: minutes(5) } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Inicia sesión con correo y contraseña.' })
@@ -74,6 +77,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 3, ttl: minutes(15) } })
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -96,6 +100,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: minutes(15) } })
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

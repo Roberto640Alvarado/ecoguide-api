@@ -25,6 +25,7 @@ export class AuthService {
       email: dto.email,
       password: dto.password,
       role: UserRole.STUDENT,
+      avatarUrl: dto.avatarUrl,
     });
 
     return this.buildAuthResponse(user.id, user.email, user.role);
