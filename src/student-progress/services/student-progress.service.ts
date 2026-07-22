@@ -1,0 +1,246 @@
+import { Injectable } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { StudentProgressRepository } from '../repositories/student-progress.repository';
+import { StudentAreaProgressDoc } from '../doc/student-area-progress-response.doc';
+import { ProtectedAreasService } from '../../protected-areas/services/protected-areas.service';
+import { ProtectedAreaResponseDoc } from '../../protected-areas/doc/protected-area-response.doc';
+import { FlashCardsService } from '../../flash-cards/services/flash-cards.service';
+import { SpeakingPracticesService } from '../../speaking-practices/services/speaking-practices.service';
+import { SpeakingResultsService } from '../../speaking-results/services/speaking-results.service';
+import { ChatbotConfigsService } from '../../chatbot/services/chatbot-configs.service';
+import { ChatbotConversationsService } from '../../chatbot-conversations/services/chatbot-conversations.service';
+import { TestsService } from '../../tests/services/tests.service';
+import { StudentTestsService } from '../../student-tests/services/student-tests.service';
+import { UsersService } from '../../users/services/users.service';
+import { AuthenticatedUser } from '../../common/interfaces/jwt-payload.interface';
+import { PaginatedResult } from '../../common/interfaces/paginated-result.interface';
+import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import { FindProtectedAreasQueryDto } from '../../protected-areas/dto/find-protected-areas-query.dto';
+
+/**
+ * Arma el avance del estudiante agregando en tiempo real lo que ya existe en
+ * cada módulo (SpeakingResults, ChatbotConversations, StudentTests) más el
+ * único dato que no tiene rastro propio (flashcards vistas, ver
+ * StudentProgressRepository). No se mantiene un documento de progreso
+ * "maestro" sincronizado a mano en cada módulo — eso duplicaría la fuente de
+ * verdad y podría desincronizarse; en cambio, siempre se calcula fresco a
+ * partir de los datos reales.
+ */
+@Injectable()
+export class StudentProgressService {
+  constructor(
+    private readonly studentProgressRepository: StudentProgressRepository,
+    private readonly protectedAreasService: ProtectedAreasService,
+    private readonly flashCardsService: FlashCardsService,
+    private readonly speakingPracticesService: SpeakingPracticesService,
+    private readonly speakingResultsService: SpeakingResultsService,
+    private readonly chatbotConfigsService: ChatbotConfigsService,
+    private readonly chatbotConversationsService: ChatbotConversationsService,
+    private readonly testsService: TestsService,
+    private readonly studentTestsService: StudentTestsService,
+    private readonly usersService: UsersService,
+  ) {}
+
+  async markFlashcardsCompleted(
+    protectedAreaId: string,
+    studentId: string,
+    requester: AuthenticatedUser,
+  ): Promise<void> {
+    await this.protectedAreasService.findByIdOrThrow(
+      protectedAreaId,
+      requester,
+    );
+
+    await this.studentProgressRepository.markFlashcardsCompleted(
+      studentId,
+      protectedAreaId,
+    );
+  }
+
+  async getOverview(
+    studentId: string,
+    requester: AuthenticatedUser,
+    query: PaginationQueryDto,
+    forcePublishedOnly = false,
+  ): Promise<PaginatedResult<StudentAreaProgressDoc>> {
+    const areasQuery: FindProtectedAreasQueryDto = forcePublishedOnly
+      ? { ...query, isPublished: true }
+      : query;
+    const areasPage = await this.protectedAreasService.findAll(
+      areasQuery,
+      requester,
+    );
+
+    const flashProgress =
+      await this.studentProgressRepository.findAllByStudent(studentId);
+    const flashCompletedByArea = new Map(
+      flashProgress.map((p) => [p.protectedAreaId, p.completedFlashcards]),
+    );
+
+    const items = await Promise.all(
+      areasPage.items.map((area) =>
+        this.buildAreaProgress(
+          area,
+          studentId,
+          flashCompletedByArea.get(area.id) ?? false,
+        ),
+      ),
+    );
+
+    return { items, meta: areasPage.meta };
+  }
+
+  async getByArea(
+    protectedAreaId: string,
+    studentId: string,
+    requester: AuthenticatedUser,
+  ): Promise<StudentAreaProgressDoc> {
+    const area = await this.protectedAreasService.findByIdOrThrow(
+      protectedAreaId,
+      requester,
+    );
+
+    const flashProgress =
+      await this.studentProgressRepository.findByStudentAndArea(
+        studentId,
+        protectedAreaId,
+      );
+
+    return this.buildAreaProgress(
+      area,
+      studentId,
+      flashProgress?.completedFlashcards ?? false,
+    );
+  }
+
+  /**
+   * Variante para el docente: mismo cálculo que getOverview, pero para
+   * cualquier estudiante (no el propio requester) — valida que el usuario
+   * exista y solo considera áreas publicadas, que son las únicas en las que
+   * el estudiante pudo haber generado actividad real.
+   */
+  async getOverviewForStudent(
+    studentId: string,
+    requester: AuthenticatedUser,
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<StudentAreaProgressDoc>> {
+    await this.usersService.findByIdOrThrow(studentId);
+
+    return this.getOverview(studentId, requester, query, true);
+  }
+
+  /** Variante para el docente de getByArea, para cualquier estudiante. */
+  async getByAreaForStudent(
+    protectedAreaId: string,
+    studentId: string,
+    requester: AuthenticatedUser,
+  ): Promise<StudentAreaProgressDoc> {
+    await this.usersService.findByIdOrThrow(studentId);
+
+    return this.getByArea(protectedAreaId, studentId, requester);
+  }
+
+  private async buildAreaProgress(
+    area: ProtectedAreaResponseDoc,
+    studentId: string,
+    flashcardsCompleted: boolean,
+  ): Promise<StudentAreaProgressDoc> {
+    const [
+      flashCardsTotal,
+      practice,
+      speakingSummary,
+      chatbotConfig,
+      chatbotSummary,
+      test,
+    ] = await Promise.all([
+      this.flashCardsService
+        .findAllByArea({
+          protectedAreaId: area.id,
+          page: 1,
+          limit: 1,
+        })
+        .then((result) => result.meta.total),
+      this.speakingPracticesService.findByProtectedArea(area.id),
+      this.speakingResultsService.getSummaryByStudentAndArea(
+        area.id,
+        studentId,
+      ),
+      this.chatbotConfigsService.findByProtectedArea(area.id),
+      this.chatbotConversationsService.getSummaryByStudentAndArea(
+        area.id,
+        studentId,
+      ),
+      this.testsService.findByProtectedArea(area.id),
+    ]);
+
+    const testSummary = test
+      ? await this.studentTestsService.getSummaryByStudentAndTest(
+          test.id,
+          studentId,
+        )
+      : { attemptsUsed: 0, bestScore: null };
+
+    const flashCardsAvailable = flashCardsTotal > 0;
+    const speakingAvailable = !!practice && practice.isActive;
+    const chatbotAvailable = !!chatbotConfig && chatbotConfig.isActive;
+    const testAvailable = !!test && test.isActive;
+
+    const flashCardsDone = flashCardsAvailable && flashcardsCompleted;
+    const speakingDone = speakingAvailable && speakingSummary.attempts > 0;
+    const chatbotDone = chatbotAvailable && chatbotSummary.finished > 0;
+    const testPassed =
+      testAvailable &&
+      testSummary.bestScore !== null &&
+      test != null &&
+      testSummary.bestScore >= test.passingScore;
+
+    const stepsTotal = [
+      flashCardsAvailable,
+      speakingAvailable,
+      chatbotAvailable,
+      testAvailable,
+    ].filter(Boolean).length;
+    const stepsCompleted = [
+      flashCardsDone,
+      speakingDone,
+      chatbotDone,
+      testPassed,
+    ].filter(Boolean).length;
+
+    return plainToInstance(
+      StudentAreaProgressDoc,
+      {
+        protectedAreaId: area.id,
+        areaName: area.name,
+        areaImage: area.images[0] ?? null,
+        stepsCompleted,
+        stepsTotal,
+        progressPercent:
+          stepsTotal > 0 ? Math.round((stepsCompleted / stepsTotal) * 100) : 0,
+        flashCards: {
+          available: flashCardsAvailable,
+          completed: flashCardsDone,
+        },
+        speaking: {
+          available: speakingAvailable,
+          attempts: speakingSummary.attempts,
+          bestScore: speakingSummary.bestScore,
+        },
+        chatbot: {
+          available: chatbotAvailable,
+          conversations: chatbotSummary.total,
+          finishedConversations: chatbotSummary.finished,
+        },
+        test: {
+          available: testAvailable,
+          attemptsUsed: testSummary.attemptsUsed,
+          maxAttempts: test?.maxAttempts ?? null,
+          bestScore: testSummary.bestScore,
+          passingScore: test?.passingScore ?? null,
+          passed: testPassed,
+        },
+      },
+      { excludeExtraneousValues: true },
+    );
+  }
+}

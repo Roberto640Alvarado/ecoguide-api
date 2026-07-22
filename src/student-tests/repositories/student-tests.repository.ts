@@ -47,4 +47,22 @@ export class StudentTestsRepository {
 
     return { items, total };
   }
+
+  /**
+   * Usado por StudentProgress para armar el resumen de un área: cuántos
+   * intentos ya usó el estudiante en el examen y su mejor nota.
+   */
+  async getSummaryByStudentAndTest(
+    studentId: string,
+    testId: string,
+  ): Promise<{ attemptsUsed: number; bestScore: number | null }> {
+    const where: Prisma.StudentTestWhereInput = { studentId, testId };
+
+    const [attemptsUsed, best] = await Promise.all([
+      this.prisma.studentTest.count({ where }),
+      this.prisma.studentTest.findFirst({ where, orderBy: { score: 'desc' } }),
+    ]);
+
+    return { attemptsUsed, bestScore: best?.score ?? null };
+  }
 }

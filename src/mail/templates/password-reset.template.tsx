@@ -14,18 +14,26 @@ export interface PasswordResetTemplateData {
   name: string;
   code: string;
   expiresInMinutes: number;
+  /**
+   * Logo embebido como data URI (data:image/png;base64,...), construido por
+   * MailService a partir de public/logo.png. Se usa un data URI en vez de
+   * un adjunto inline con cid: para no depender de si el proveedor de
+   * correo (Brevo, en este caso) soporta esa referencia — un data URI se
+   * renderiza igual en cualquier proveedor. Si no se provee, el correo se
+   * envía sin logo (el nombre "EcoGuide" igual se muestra).
+   */
+  logoSrc?: string;
 }
 
 /**
  * Template del correo de recuperación de contraseña, construido con
  * react-email (renderizado a HTML vía @react-email/render en MailService).
- * El logo se referencia mediante cid:logo (adjuntado como inline attachment
- * por MailService desde public/logo.png).
  */
 export function PasswordResetEmail({
   name,
   code,
   expiresInMinutes,
+  logoSrc,
 }: PasswordResetTemplateData) {
   return (
     <Html lang="es">
@@ -34,13 +42,15 @@ export function PasswordResetEmail({
       <Body style={styles.main}>
         <Container style={styles.container}>
           <Section style={styles.header}>
-            <Img
-              src="cid:logo"
-              width={72}
-              height={72}
-              alt="EcoGuide"
-              style={styles.logo}
-            />
+            {logoSrc && (
+              <Img
+                src={logoSrc}
+                width={72}
+                height={72}
+                alt="EcoGuide"
+                style={styles.logo}
+              />
+            )}
             <Text style={styles.brand}>EcoGuide</Text>
           </Section>
 

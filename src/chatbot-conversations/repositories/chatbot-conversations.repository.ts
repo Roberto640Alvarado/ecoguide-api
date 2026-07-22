@@ -66,4 +66,27 @@ export class ChatbotConversationsRepository {
 
     return { items, total };
   }
+
+  /**
+   * Usado por StudentProgress para armar el resumen de un área: cuántas
+   * conversaciones tuvo el estudiante y cuántas de esas finalizó.
+   */
+  async getSummaryByStudentAndArea(
+    studentId: string,
+    protectedAreaId: string,
+  ): Promise<{ total: number; finished: number }> {
+    const where: Prisma.ChatbotConversationWhereInput = {
+      studentId,
+      protectedAreaId,
+    };
+
+    const [total, finished] = await Promise.all([
+      this.prisma.chatbotConversation.count({ where }),
+      this.prisma.chatbotConversation.count({
+        where: { ...where, endedAt: { not: null } },
+      }),
+    ]);
+
+    return { total, finished };
+  }
 }

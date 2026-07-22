@@ -24,6 +24,7 @@ import { StudentTestsService } from '../services/student-tests.service';
 import { SubmitTestDto } from '../dto/submit-test.dto';
 import { StudentTestResponseDoc } from '../doc/student-test-response.doc';
 import { StudentTestConfigDoc } from '../doc/student-test-config.doc';
+import { TeacherStudentTestResponseDoc } from '../doc/teacher-student-test-response.doc';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { PaginatedResult } from '../../common/interfaces/paginated-result.interface';
 
@@ -132,5 +133,37 @@ export class StudentTestsController {
     );
 
     return { message: 'Examen calificado correctamente.', data };
+  }
+
+  @Get('teacher/students/:studentId/by-area/:protectedAreaId')
+  @Roles(UserRole.TEACHER)
+  @ApiOperation({
+    summary:
+      'Lista los intentos de examen de un estudiante en un área, con el detalle de cada respuesta (uso del docente).',
+  })
+  @ApiParam({ name: 'studentId' })
+  @ApiParam({ name: 'protectedAreaId' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: 200, description: 'Listado paginado de intentos.' })
+  @ApiResponse({
+    status: 404,
+    description: 'Esta área protegida no tiene un examen configurado.',
+  })
+  async findByStudentForTeacher(
+    @Param('studentId') studentId: string,
+    @Param('protectedAreaId') protectedAreaId: string,
+    @Query() query: PaginationQueryDto,
+  ): Promise<{
+    message: string;
+    data: PaginatedResult<TeacherStudentTestResponseDoc>;
+  }> {
+    const data = await this.studentTestsService.findByAreaForTeacher(
+      protectedAreaId,
+      studentId,
+      query,
+    );
+
+    return { message: 'Intentos de examen obtenidos correctamente.', data };
   }
 }

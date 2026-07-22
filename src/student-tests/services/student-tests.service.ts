@@ -9,6 +9,7 @@ import { StudentTestsRepository } from '../repositories/student-tests.repository
 import { SubmitTestDto } from '../dto/submit-test.dto';
 import { StudentTestResponseDoc } from '../doc/student-test-response.doc';
 import { StudentTestConfigDoc } from '../doc/student-test-config.doc';
+import { TeacherStudentTestResponseDoc } from '../doc/teacher-student-test-response.doc';
 import {
   AnswerData,
   STUDENT_TEST_SORTABLE_FIELDS,
@@ -176,6 +177,70 @@ export class StudentTestsService {
   }
 
   /**
+   * Variante para el docente: mismos intentos que findByArea, pero con el
+   * detalle completo de cada respuesta (texto de la pregunta, opciones y
+   * `correctAnswer` incluidos vía TeacherStudentTestResponseDoc) — el
+   * estudiante nunca recibe esto, solo el docente (ver StudentTestsController,
+   * rutas `teacher/...`).
+   */
+  async findByAreaForTeacher(
+    protectedAreaId: string,
+    studentId: string,
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<TeacherStudentTestResponseDoc>> {
+    const test = await this.testsService.findByProtectedArea(protectedAreaId);
+
+    if (!test) {
+      throw new NotFoundException(
+        'Esta área protegida no tiene un examen configurado.',
+      );
+    }
+
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const { field: sortField, order: sortOrder } = parseSort(
+      query.sort,
+      STUDENT_TEST_SORTABLE_FIELDS,
+      'createdAt',
+    );
+
+    const { items, total } =
+      await this.studentTestsRepository.findAllByStudentAndArea(
+        studentId,
+        protectedAreaId,
+        { page, limit, sortField, sortOrder },
+      );
+
+    const questionsById = new Map(test.questions.map((q) => [q.id, q]));
+
+    return {
+      items: items.map((item) =>
+        this.toTeacherResponseDoc(item, test.passingScore, questionsById),
+      ),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    };
+  }
+
+  /**
+   * Resumen liviano (sin paginar) usado por StudentProgress: cuántos
+   * intentos ya usó el estudiante en el examen del área y su mejor nota.
+   */
+  async getSummaryByStudentAndTest(
+    testId: string,
+    studentId: string,
+  ): Promise<{ attemptsUsed: number; bestScore: number | null }> {
+    return this.studentTestsRepository.getSummaryByStudentAndTest(
+      studentId,
+      testId,
+    );
+  }
+
+  /**
    * Valida que las respuestas enviadas correspondan exactamente (mismo
    * número, mismos ids, sin duplicados) a las preguntas del examen, y
    * califica cada una. La comparación normaliza espacios y mayúsculas para
@@ -233,6 +298,43 @@ export class StudentTestsService {
         ...studentTest,
         passingScore,
         passed: studentTest.score >= passingScore,
+      },
+      { excludeExtraneousValues: true },
+    );
+  }
+
+  private toTeacherResponseDoc(
+    studentTest: StudentTest,
+    passingScore: number,
+    questionsById: Map<
+      string,
+      {
+        question: string;
+        options: string[];
+        correctAnswer: string;
+        score: number;
+      }
+    >,
+  ): TeacherStudentTestResponseDoc {
+    return plainToInstance(
+      TeacherStudentTestResponseDoc,
+      {
+        ...studentTest,
+        passingScore,
+        passed: studentTest.score >= passingScore,
+        answers: studentTest.answers.map((answer) => {
+          const question = questionsById.get(answer.questionId);
+
+          return {
+            questionId: answer.questionId,
+            question: question?.question ?? '',
+            options: question?.options ?? [],
+            correctAnswer: question?.correctAnswer ?? '',
+            studentAnswer: answer.studentAnswer,
+            isCorrect: answer.isCorrect,
+            points: question?.score ?? 0,
+          };
+        }),
       },
       { excludeExtraneousValues: true },
     );

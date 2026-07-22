@@ -10,5 +10,6 @@ import { AIProvidersModule } from '../ai-providers/ai-providers.module';
   imports: [ProtectedAreasModule, ChatbotModule, AIProvidersModule],
   controllers: [ChatbotConversationsController],
   providers: [ChatbotConversationsService, ChatbotConversationsRepository],
+  exports: [ChatbotConversationsService],
 })
 export class ChatbotConversationsModule {}

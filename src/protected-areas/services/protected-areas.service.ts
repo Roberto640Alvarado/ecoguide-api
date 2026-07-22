@@ -28,8 +28,9 @@ const OBJECT_ID_REGEX = /^[a-f\d]{24}$/i;
  * "Eliminar" un área protegida se implementa como soft delete
  * (isPublished = false) en vez de un hard delete, porque ProtectedArea tiene
  * relaciones con onDelete: Cascade hacia FlashCard, SpeakingPractice,
- * ChatbotConfig, Test, StudentProgress, SpeakingResult, ChatbotConversation
- * y StudentTest — un borrado real destruiría todo ese contenido dependiente.
+ * ChatbotConfig, Test, StudentProgress, SpeakingResult, ChatbotConversation,
+ * StudentTest y Badge — un borrado real destruiría todo ese contenido
+ * dependiente.
  */
 @Injectable()
 export class ProtectedAreasService {

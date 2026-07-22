@@ -43,4 +43,28 @@ export class SpeakingResultsRepository {
 
     return { items, total };
   }
+
+  /**
+   * Usado por StudentProgress para armar el resumen de un área sin traer
+   * todos los intentos (a diferencia de findAllByStudentAndArea, que pagina).
+   */
+  async getSummaryByStudentAndArea(
+    studentId: string,
+    protectedAreaId: string,
+  ): Promise<{ attempts: number; bestScore: number | null }> {
+    const where: Prisma.SpeakingResultWhereInput = {
+      studentId,
+      protectedAreaId,
+    };
+
+    const [attempts, best] = await Promise.all([
+      this.prisma.speakingResult.count({ where }),
+      this.prisma.speakingResult.findFirst({
+        where,
+        orderBy: { score: 'desc' },
+      }),
+    ]);
+
+    return { attempts, bestScore: best?.score ?? null };
+  }
 }

@@ -22,6 +22,7 @@ import { AICompletionService } from '../../ai-providers/services/ai-completion.s
 import { AIChatMessage } from '../../ai-providers/strategies/ai-provider.strategy';
 import { AuthenticatedUser } from '../../common/interfaces/jwt-payload.interface';
 import { stripHtml } from '../../common/utils/strip-html.util';
+import { buildAreaContext } from '../../common/utils/build-area-context.util';
 import {
   PaginatedResult,
   parseSort,
@@ -91,6 +92,7 @@ export class ChatbotConversationsService {
     id: string,
     dto: SendMessageDto,
     studentId: string,
+    requester: AuthenticatedUser,
   ): Promise<ChatbotConversationResponseDoc> {
     const conversation = await this.getOwnedConversationOrThrow(id, studentId);
 
@@ -108,7 +110,12 @@ export class ChatbotConversationsService {
       );
     }
 
-    const systemPrompt = stripHtml(config.systemPrompt);
+    const area = await this.protectedAreasService.findByIdOrThrow(
+      conversation.protectedAreaId,
+      requester,
+    );
+
+    const systemPrompt = `${buildAreaContext(area)}\n\n${stripHtml(config.systemPrompt)}`;
     const history: AIChatMessage[] = conversation.messages.map((m) => ({
       role: m.role === 'assistant' ? 'assistant' : 'user',
       content: m.message,
@@ -147,6 +154,20 @@ export class ChatbotConversationsService {
     ]);
 
     return this.toResponseDoc(updated);
+  }
+
+  /**
+   * Resumen liviano (sin paginar) usado por StudentProgress: cuántas
+   * conversaciones tuvo el estudiante en el área y cuántas finalizó.
+   */
+  async getSummaryByStudentAndArea(
+    protectedAreaId: string,
+    studentId: string,
+  ): Promise<{ total: number; finished: number }> {
+    return this.chatbotConversationsRepository.getSummaryByStudentAndArea(
+      studentId,
+      protectedAreaId,
+    );
   }
 
   async finish(
@@ -211,6 +232,69 @@ export class ChatbotConversationsService {
     studentId: string,
   ): Promise<ChatbotConversationResponseDoc> {
     const conversation = await this.getOwnedConversationOrThrow(id, studentId);
+
+    return this.toResponseDoc(conversation);
+  }
+
+  /**
+   * Variante para el docente de findByArea, para cualquier estudiante — sin
+   * el chequeo de visibilidad de STUDENT.
+   */
+  async findByAreaForTeacher(
+    protectedAreaId: string,
+    studentId: string,
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<ChatbotConversationResponseDoc>> {
+    const areaExists =
+      await this.protectedAreasService.existsById(protectedAreaId);
+
+    if (!areaExists) {
+      throw new NotFoundException('Área protegida no encontrada.');
+    }
+
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const { field: sortField, order: sortOrder } = parseSort(
+      query.sort,
+      CHATBOT_CONVERSATION_SORTABLE_FIELDS,
+      'startedAt',
+    );
+
+    const { items, total } =
+      await this.chatbotConversationsRepository.findAllByStudentAndArea(
+        studentId,
+        protectedAreaId,
+        { page, limit, sortField, sortOrder },
+      );
+
+    return {
+      items: items.map((item) => this.toResponseDoc(item)),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    };
+  }
+
+  /**
+   * Variante para el docente de findByIdOrThrow: obtiene el detalle
+   * (transcripción completa) de cualquier conversación, sin el chequeo de
+   * pertenencia al estudiante autenticado.
+   */
+  async findByIdForTeacher(
+    id: string,
+  ): Promise<ChatbotConversationResponseDoc> {
+    if (!OBJECT_ID_REGEX.test(id)) {
+      throw new BadRequestException('El id proporcionado no es válido.');
+    }
+
+    const conversation = await this.chatbotConversationsRepository.findById(id);
+
+    if (!conversation) {
+      throw new NotFoundException('Conversación no encontrada.');
+    }
 
     return this.toResponseDoc(conversation);
   }

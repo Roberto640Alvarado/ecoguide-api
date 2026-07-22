@@ -19,6 +19,8 @@ import { SpeakingResultsModule } from './speaking-results/speaking-results.modul
 import { ChatbotConversationsModule } from './chatbot-conversations/chatbot-conversations.module';
 import { TestsModule } from './tests/tests.module';
 import { StudentTestsModule } from './student-tests/student-tests.module';
+import { StudentProgressModule } from './student-progress/student-progress.module';
+import { BadgesModule } from './badges/badges.module';
 import { UploadFilesModule } from './upload-files/upload-files.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -55,6 +57,8 @@ import { buildLoggerConfig } from './common/config/logger.config';
     ChatbotConversationsModule,
     TestsModule,
     StudentTestsModule,
+    StudentProgressModule,
+    BadgesModule,
     UploadFilesModule,
   ],
   controllers: [AppController],

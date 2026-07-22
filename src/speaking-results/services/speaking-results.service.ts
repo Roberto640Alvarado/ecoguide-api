@@ -11,6 +11,7 @@ import { AICompletionService } from '../../ai-providers/services/ai-completion.s
 import { AIChatMessage } from '../../ai-providers/strategies/ai-provider.strategy';
 import { AuthenticatedUser } from '../../common/interfaces/jwt-payload.interface';
 import { stripHtml } from '../../common/utils/strip-html.util';
+import { buildAreaContext } from '../../common/utils/build-area-context.util';
 import {
   PaginatedResult,
   parseSort,
@@ -48,7 +49,7 @@ export class SpeakingResultsService {
     requester: AuthenticatedUser,
   ): Promise<SpeakingResultResponseDoc> {
     // Lanza 404 si el área no existe o (siendo STUDENT) no está publicada.
-    await this.protectedAreasService.findByIdOrThrow(
+    const area = await this.protectedAreasService.findByIdOrThrow(
       dto.protectedAreaId,
       requester,
     );
@@ -68,6 +69,7 @@ export class SpeakingResultsService {
       practice.model,
       practice.prompt,
       dto.transcription,
+      buildAreaContext(area),
     );
 
     const result = await this.speakingResultsRepository.create({
@@ -94,6 +96,34 @@ export class SpeakingResultsService {
       requester,
     );
 
+    return this.paginateByStudentAndArea(studentId, protectedAreaId, query);
+  }
+
+  /**
+   * Variante para el docente de findByArea, para cualquier estudiante — sin
+   * el chequeo de visibilidad de STUDENT (el docente puede consultar
+   * cualquier área, publicada o no).
+   */
+  async findByAreaForTeacher(
+    protectedAreaId: string,
+    studentId: string,
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<SpeakingResultResponseDoc>> {
+    const areaExists =
+      await this.protectedAreasService.existsById(protectedAreaId);
+
+    if (!areaExists) {
+      throw new NotFoundException('Área protegida no encontrada.');
+    }
+
+    return this.paginateByStudentAndArea(studentId, protectedAreaId, query);
+  }
+
+  private async paginateByStudentAndArea(
+    studentId: string,
+    protectedAreaId: string,
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<SpeakingResultResponseDoc>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const { field: sortField, order: sortOrder } = parseSort(
@@ -121,24 +151,41 @@ export class SpeakingResultsService {
   }
 
   /**
-   * Llama a la IA con el prompt de evaluación del docente (texto plano, sin
-   * HTML del editor) + la transcripción, forzando una respuesta en JSON para
-   * poder extraer feedback y calificación de forma confiable. Si el modelo
-   * no respeta el formato (pasa con cualquier LLM), se degrada con gracia:
-   * se usa el texto crudo como feedback y una calificación neutral.
+   * Resumen liviano (sin paginar) usado por StudentProgress para armar el
+   * avance del estudiante en un área: cuántos intentos hizo y su mejor nota.
+   */
+  async getSummaryByStudentAndArea(
+    protectedAreaId: string,
+    studentId: string,
+  ): Promise<{ attempts: number; bestScore: number | null }> {
+    return this.speakingResultsRepository.getSummaryByStudentAndArea(
+      studentId,
+      protectedAreaId,
+    );
+  }
+
+  /**
+   * Llama a la IA con el contexto del área protegida (nombre + descripción,
+   * ver buildAreaContext) + el prompt de evaluación del docente (texto
+   * plano, sin HTML del editor) + la transcripción, forzando una respuesta
+   * en JSON para poder extraer feedback y calificación de forma confiable.
+   * Si el modelo no respeta el formato (pasa con cualquier LLM), se degrada
+   * con gracia: se usa el texto crudo como feedback y una calificación
+   * neutral.
    */
   private async evaluate(
     providerId: string,
     model: string,
     prompt: string,
     transcription: string,
+    areaContext: string,
   ): Promise<{ feedback: string; score: number }> {
     const evaluationPrompt = stripHtml(prompt);
 
     const messages: AIChatMessage[] = [
       {
         role: 'system',
-        content: `${evaluationPrompt}\n\nResponde ÚNICAMENTE con un objeto JSON válido, sin texto adicional ni bloques de código, con exactamente esta forma: {"feedback": "retroalimentación de 2 a 4 oraciones", "score": <número entero del 1 al 10>}.`,
+        content: `${areaContext}\n\n${evaluationPrompt}\n\nResponde ÚNICAMENTE con un objeto JSON válido, sin texto adicional ni bloques de código, con exactamente esta forma: {"feedback": "retroalimentación de 2 a 4 oraciones", "score": <número entero del 1 al 10>}.`,
       },
       {
         role: 'user',

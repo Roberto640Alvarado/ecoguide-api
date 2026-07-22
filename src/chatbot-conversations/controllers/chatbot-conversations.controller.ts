@@ -137,11 +137,13 @@ export class ChatbotConversationsController {
     @Param('id') id: string,
     @Body() dto: SendMessageDto,
     @User('id') studentId: string,
+    @User() requester: AuthenticatedUser,
   ): Promise<{ message: string; data: ChatbotConversationResponseDoc }> {
     const data = await this.chatbotConversationsService.sendMessage(
       id,
       dto,
       studentId,
+      requester,
     );
 
     return { message: 'Mensaje enviado correctamente.', data };
@@ -164,5 +166,54 @@ export class ChatbotConversationsController {
     const data = await this.chatbotConversationsService.finish(id, studentId);
 
     return { message: 'Conversación finalizada correctamente.', data };
+  }
+
+  @Get('teacher/students/:studentId/by-area/:protectedAreaId')
+  @Roles(UserRole.TEACHER)
+  @ApiOperation({
+    summary:
+      'Lista las conversaciones de un estudiante en un área (uso del docente).',
+  })
+  @ApiParam({ name: 'studentId' })
+  @ApiParam({ name: 'protectedAreaId' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({
+    status: 200,
+    description: 'Listado paginado de conversaciones.',
+  })
+  @ApiResponse({ status: 404, description: 'Área protegida no encontrada.' })
+  async findByStudentForTeacher(
+    @Param('studentId') studentId: string,
+    @Param('protectedAreaId') protectedAreaId: string,
+    @Query() query: PaginationQueryDto,
+  ): Promise<{
+    message: string;
+    data: PaginatedResult<ChatbotConversationResponseDoc>;
+  }> {
+    const data = await this.chatbotConversationsService.findByAreaForTeacher(
+      protectedAreaId,
+      studentId,
+      query,
+    );
+
+    return { message: 'Conversaciones obtenidas correctamente.', data };
+  }
+
+  @Get('teacher/:id')
+  @Roles(UserRole.TEACHER)
+  @ApiOperation({
+    summary:
+      'Obtiene el detalle (transcripción completa) de una conversación (uso del docente).',
+  })
+  @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 200, description: 'Conversación encontrada.' })
+  @ApiResponse({ status: 404, description: 'Conversación no encontrada.' })
+  async findOneForTeacher(
+    @Param('id') id: string,
+  ): Promise<{ message: string; data: ChatbotConversationResponseDoc }> {
+    const data = await this.chatbotConversationsService.findByIdForTeacher(id);
+
+    return { message: 'Conversación obtenida correctamente.', data };
   }
 }

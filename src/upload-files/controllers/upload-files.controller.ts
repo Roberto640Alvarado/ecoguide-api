@@ -25,6 +25,9 @@ import { UploadFileResponseDoc } from '../doc/upload-file-response.doc';
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
+const MAX_BADGE_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
+const ALLOWED_BADGE_IMAGE_MIME_TYPES = ['image/png'];
+
 const MAX_AUDIO_SIZE_BYTES = 15 * 1024 * 1024;
 const ALLOWED_AUDIO_MIME_TYPES = [
   'audio/webm',
@@ -154,6 +157,60 @@ export class UploadFilesController {
 
     return {
       message: 'Audio subido correctamente.',
+      data: { url },
+    };
+  }
+
+  @Post('badge-image')
+  @Roles(UserRole.TEACHER)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary:
+      'Sube la imagen de una insignia a Cloudinary (solo PNG) y devuelve su URL.',
+  })
+  @ApiQuery({
+    name: 'folder',
+    required: false,
+    description:
+      'Subcarpeta dentro de "ecoguide/" para organizar las imágenes (ej. badges).',
+  })
+  @ApiResponse({ status: 201, description: 'Imagen subida correctamente.' })
+  @ApiResponse({
+    status: 400,
+    description: 'Archivo faltante o formato no permitido (solo PNG).',
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: MAX_BADGE_IMAGE_SIZE_BYTES },
+      fileFilter: (_req, file, callback) => {
+        if (!ALLOWED_BADGE_IMAGE_MIME_TYPES.includes(file.mimetype)) {
+          callback(
+            new BadRequestException('La imagen de la insignia debe ser PNG.'),
+            false,
+          );
+          return;
+        }
+
+        callback(null, true);
+      },
+    }),
+  )
+  async uploadBadgeImage(
+    @UploadedFile() file: Express.Multer.File,
+    @Query('folder') folder?: string,
+  ): Promise<{ message: string; data: UploadFileResponseDoc }> {
+    if (!file) {
+      throw new BadRequestException('Debes adjuntar un archivo.');
+    }
+
+    const url = await this.uploadFilesService.uploadImage(
+      file,
+      folder ? `ecoguide/${folder}` : 'ecoguide',
+    );
+
+    return {
+      message: 'Imagen subida correctamente.',
       data: { url },
     };
   }

@@ -98,6 +98,7 @@ model ProtectedArea {
   speakingResults        SpeakingResult[]
   chatbotConversations   ChatbotConversation[]
   studentTests           StudentTest[]
+  badges                 Badge[]
 
   @@map("protected_areas")
 }
@@ -126,6 +127,27 @@ model FlashCard {
   protectedArea     ProtectedArea @relation(fields: [protectedAreaId], references: [id], onDelete: Cascade)
 
   @@map("flash_cards")
+}
+
+// ============================================
+// BADGES
+// ============================================
+
+model Badge {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  protectedAreaId   String   @db.ObjectId
+  name              String
+  description       String
+  // Mensaje que verá el estudiante al obtener la insignia (aún sin lógica de
+  // entrega — por ahora solo se configura desde el panel del docente).
+  message           String
+  imageUrl          String // PNG en Cloudinary
+  createdAt         DateTime @default(now())
+
+  // Relaciones
+  protectedArea     ProtectedArea @relation(fields: [protectedAreaId], references: [id], onDelete: Cascade)
+
+  @@map("badges")
 }
 
 // ============================================

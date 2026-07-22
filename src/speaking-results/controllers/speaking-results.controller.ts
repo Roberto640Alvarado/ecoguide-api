@@ -102,4 +102,33 @@ export class SpeakingResultsController {
 
     return { message: 'Intento de speaking evaluado correctamente.', data };
   }
+
+  @Get('teacher/students/:studentId/by-area/:protectedAreaId')
+  @Roles(UserRole.TEACHER)
+  @ApiOperation({
+    summary:
+      'Lista los intentos de speaking de un estudiante en un área (uso del docente).',
+  })
+  @ApiParam({ name: 'studentId' })
+  @ApiParam({ name: 'protectedAreaId' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: 200, description: 'Listado paginado de intentos.' })
+  @ApiResponse({ status: 404, description: 'Área protegida no encontrada.' })
+  async findByStudentForTeacher(
+    @Param('studentId') studentId: string,
+    @Param('protectedAreaId') protectedAreaId: string,
+    @Query() query: PaginationQueryDto,
+  ): Promise<{
+    message: string;
+    data: PaginatedResult<SpeakingResultResponseDoc>;
+  }> {
+    const data = await this.speakingResultsService.findByAreaForTeacher(
+      protectedAreaId,
+      studentId,
+      query,
+    );
+
+    return { message: 'Intentos de speaking obtenidos correctamente.', data };
+  }
 }

@@ -10,5 +10,6 @@ import { AIProvidersModule } from '../ai-providers/ai-providers.module';
   imports: [ProtectedAreasModule, SpeakingPracticesModule, AIProvidersModule],
   controllers: [SpeakingResultsController],
   providers: [SpeakingResultsService, SpeakingResultsRepository],
+  exports: [SpeakingResultsService],
 })
 export class SpeakingResultsModule {}

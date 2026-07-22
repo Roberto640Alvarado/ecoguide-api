@@ -9,5 +9,6 @@ import { TestsModule } from '../tests/tests.module';
   imports: [ProtectedAreasModule, TestsModule],
   controllers: [StudentTestsController],
   providers: [StudentTestsService, StudentTestsRepository],
+  exports: [StudentTestsService],
 })
 export class StudentTestsModule {}
