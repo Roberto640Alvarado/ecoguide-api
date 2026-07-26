@@ -22,6 +22,7 @@ import { StudentTestsModule } from './student-tests/student-tests.module';
 import { StudentProgressModule } from './student-progress/student-progress.module';
 import { BadgesModule } from './badges/badges.module';
 import { UploadFilesModule } from './upload-files/upload-files.module';
+import { TranslationModule } from './translation/translation.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
@@ -60,6 +61,7 @@ import { buildLoggerConfig } from './common/config/logger.config';
     StudentProgressModule,
     BadgesModule,
     UploadFilesModule,
+    TranslationModule,
   ],
   controllers: [AppController],
   providers: [

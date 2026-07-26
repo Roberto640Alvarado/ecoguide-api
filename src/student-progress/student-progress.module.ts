@@ -11,6 +11,7 @@ import { ChatbotConversationsModule } from '../chatbot-conversations/chatbot-con
 import { TestsModule } from '../tests/tests.module';
 import { StudentTestsModule } from '../student-tests/student-tests.module';
 import { UsersModule } from '../users/users.module';
+import { BadgesModule } from '../badges/badges.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { UsersModule } from '../users/users.module';
     TestsModule,
     StudentTestsModule,
     UsersModule,
+    BadgesModule,
   ],
   controllers: [StudentProgressController],
   providers: [StudentProgressService, StudentProgressRepository],

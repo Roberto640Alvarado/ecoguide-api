@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AIProvider } from '@prisma/client';
+import { AIProvider, AIProviderType } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { randomUUID } from 'crypto';
 import { AIProvidersRepository } from '../repositories/ai-providers.repository';
@@ -190,6 +190,26 @@ export class AIProvidersService {
    */
   async getDecryptedApiKey(id: string): Promise<string> {
     const provider = await this.getProviderOrThrow(id);
+
+    return this.apiKeyEncryptionService.decrypt(provider.apiKeyEncrypted);
+  }
+
+  /**
+   * Descifra el apiKey del primer proveedor activo de un tipo dado (ej.
+   * GROQ), sin conocer su id. Uso interno para integraciones que siempre
+   * dependen de un vendor específico sin importar la configuración de
+   * providerId/model de cada SpeakingPractice/ChatbotConfig — hoy solo la
+   * transcripción de audio (Whisper vía Groq, ver GroqTranscriptionService).
+   */
+  async getActiveApiKeyByType(providerType: AIProviderType): Promise<string> {
+    const provider =
+      await this.aiProvidersRepository.findFirstActiveByType(providerType);
+
+    if (!provider) {
+      throw new NotFoundException(
+        `No hay un proveedor de IA de tipo "${providerType}" activo configurado.`,
+      );
+    }
 
     return this.apiKeyEncryptionService.decrypt(provider.apiKeyEncrypted);
   }

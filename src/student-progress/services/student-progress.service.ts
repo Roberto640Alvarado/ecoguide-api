@@ -10,12 +10,44 @@ import { SpeakingResultsService } from '../../speaking-results/services/speaking
 import { ChatbotConfigsService } from '../../chatbot/services/chatbot-configs.service';
 import { ChatbotConversationsService } from '../../chatbot-conversations/services/chatbot-conversations.service';
 import { TestsService } from '../../tests/services/tests.service';
+import { TestResponseDoc } from '../../tests/doc/test-response.doc';
 import { StudentTestsService } from '../../student-tests/services/student-tests.service';
 import { UsersService } from '../../users/services/users.service';
+import { BadgesService } from '../../badges/services/badges.service';
+import { BadgeAwardResultDoc } from '../../badges/doc/badge-award-result.doc';
+import { BadgeResponseDoc } from '../../badges/doc/badge-response.doc';
 import { AuthenticatedUser } from '../../common/interfaces/jwt-payload.interface';
 import { PaginatedResult } from '../../common/interfaces/paginated-result.interface';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { FindProtectedAreasQueryDto } from '../../protected-areas/dto/find-protected-areas-query.dto';
+
+/**
+ * Nota mínima (sobre el total de 10 de un examen) para que el intento
+ * cuente como "aprobado" a efectos de otorgar la insignia del área — fija,
+ * independiente del `passingScore` que el docente configuró en el Test (ese
+ * campo solo determina el indicador de "examen aprobado" que ve el propio
+ * estudiante/docente en el avance, no el desbloqueo de la insignia).
+ */
+const BADGE_MIN_TEST_SCORE = 6;
+
+interface AreaProgressFlags {
+  flashCardsAvailable: boolean;
+  speakingAvailable: boolean;
+  chatbotAvailable: boolean;
+  testAvailable: boolean;
+  flashCardsDone: boolean;
+  speakingDone: boolean;
+  chatbotDone: boolean;
+  testPassed: boolean;
+  speakingSummary: {
+    attempts: number;
+    finished: number;
+    bestScore: number | null;
+  };
+  chatbotSummary: { total: number; finished: number };
+  testSummary: { attemptsUsed: number; bestScore: number | null };
+  test: TestResponseDoc | null;
+}
 
 /**
  * Arma el avance del estudiante agregando en tiempo real lo que ya existe en
@@ -39,6 +71,7 @@ export class StudentProgressService {
     private readonly testsService: TestsService,
     private readonly studentTestsService: StudentTestsService,
     private readonly usersService: UsersService,
+    private readonly badgesService: BadgesService,
   ) {}
 
   async markFlashcardsCompleted(
@@ -140,11 +173,105 @@ export class StudentProgressService {
     return this.getByArea(protectedAreaId, studentId, requester);
   }
 
-  private async buildAreaProgress(
+  /** Todas las insignias que el estudiante ya obtuvo, en cualquier área
+   * (uso: dashboard del estudiante). */
+  async getAllEarnedBadges(studentId: string): Promise<BadgeResponseDoc[]> {
+    return this.badgesService.getAllEarnedForStudent(studentId);
+  }
+
+  /** Insignias que el estudiante ya obtuvo para un área (sin revisar/otorgar
+   * nada nuevo — ver checkAndAwardBadges para eso). Usado por la vista de
+   * "Nota" del recorrido para mostrar la insignia obtenida. */
+  async getEarnedBadges(
+    protectedAreaId: string,
+    studentId: string,
+    requester: AuthenticatedUser,
+  ): Promise<BadgeResponseDoc[]> {
+    await this.protectedAreasService.findByIdOrThrow(
+      protectedAreaId,
+      requester,
+    );
+
+    return this.badgesService.getEarnedForStudentAndArea(
+      studentId,
+      protectedAreaId,
+    );
+  }
+
+  /**
+   * Revisa si el estudiante ya terminó el recorrido completo de un área
+   * (todos los pasos configurados hechos, examen con nota >= 6/10 si el
+   * área tiene examen) y, de ser así, le otorga las insignias del área que
+   * todavía no tenga (ver BadgesService.awardAreaBadgesToStudent).
+   * Idempotente y seguro de llamar en cada visita a la vista de progreso
+   * del estudiante — solo se dispara el desbloqueo (justUnlocked) la
+   * primera vez que se cumple la condición.
+   */
+  async checkAndAwardBadges(
+    protectedAreaId: string,
+    studentId: string,
+    requester: AuthenticatedUser,
+  ): Promise<BadgeAwardResultDoc> {
+    const area = await this.protectedAreasService.findByIdOrThrow(
+      protectedAreaId,
+      requester,
+    );
+
+    const flashProgress =
+      await this.studentProgressRepository.findByStudentAndArea(
+        studentId,
+        protectedAreaId,
+      );
+
+    const flags = await this.computeAreaFlags(
+      area,
+      studentId,
+      flashProgress?.completedFlashcards ?? false,
+    );
+
+    const stepsTotal = [
+      flags.flashCardsAvailable,
+      flags.speakingAvailable,
+      flags.chatbotAvailable,
+      flags.testAvailable,
+    ].filter(Boolean).length;
+
+    const testPassedForBadge =
+      flags.testAvailable &&
+      flags.testSummary.bestScore !== null &&
+      flags.testSummary.bestScore >= BADGE_MIN_TEST_SCORE;
+
+    const tourCompleted =
+      stepsTotal > 0 &&
+      (!flags.flashCardsAvailable || flags.flashCardsDone) &&
+      (!flags.speakingAvailable || flags.speakingDone) &&
+      (!flags.chatbotAvailable || flags.chatbotDone) &&
+      (!flags.testAvailable || testPassedForBadge);
+
+    if (tourCompleted) {
+      return this.badgesService.awardAreaBadgesToStudent(
+        studentId,
+        protectedAreaId,
+      );
+    }
+
+    const earnedBadges = await this.badgesService.getEarnedForStudentAndArea(
+      studentId,
+      protectedAreaId,
+    );
+
+    return plainToInstance(
+      BadgeAwardResultDoc,
+      { completed: false, justUnlocked: [], earnedBadges },
+      { excludeExtraneousValues: true },
+    );
+  }
+
+  private async computeAreaFlags(
     area: ProtectedAreaResponseDoc,
     studentId: string,
     flashcardsCompleted: boolean,
-  ): Promise<StudentAreaProgressDoc> {
+  ): Promise<AreaProgressFlags> {
     const [
       flashCardsTotal,
       practice,
@@ -186,7 +313,7 @@ export class StudentProgressService {
     const testAvailable = !!test && test.isActive;
 
     const flashCardsDone = flashCardsAvailable && flashcardsCompleted;
-    const speakingDone = speakingAvailable && speakingSummary.attempts > 0;
+    const speakingDone = speakingAvailable && speakingSummary.finished > 0;
     const chatbotDone = chatbotAvailable && chatbotSummary.finished > 0;
     const testPassed =
       testAvailable &&
@@ -194,17 +321,44 @@ export class StudentProgressService {
       test != null &&
       testSummary.bestScore >= test.passingScore;
 
-    const stepsTotal = [
+    return {
       flashCardsAvailable,
       speakingAvailable,
       chatbotAvailable,
       testAvailable,
-    ].filter(Boolean).length;
-    const stepsCompleted = [
       flashCardsDone,
       speakingDone,
       chatbotDone,
       testPassed,
+      speakingSummary,
+      chatbotSummary,
+      testSummary,
+      test,
+    };
+  }
+
+  private async buildAreaProgress(
+    area: ProtectedAreaResponseDoc,
+    studentId: string,
+    flashcardsCompleted: boolean,
+  ): Promise<StudentAreaProgressDoc> {
+    const flags = await this.computeAreaFlags(
+      area,
+      studentId,
+      flashcardsCompleted,
+    );
+
+    const stepsTotal = [
+      flags.flashCardsAvailable,
+      flags.speakingAvailable,
+      flags.chatbotAvailable,
+      flags.testAvailable,
+    ].filter(Boolean).length;
+    const stepsCompleted = [
+      flags.flashCardsDone,
+      flags.speakingDone,
+      flags.chatbotDone,
+      flags.testPassed,
     ].filter(Boolean).length;
 
     return plainToInstance(
@@ -218,26 +372,27 @@ export class StudentProgressService {
         progressPercent:
           stepsTotal > 0 ? Math.round((stepsCompleted / stepsTotal) * 100) : 0,
         flashCards: {
-          available: flashCardsAvailable,
-          completed: flashCardsDone,
+          available: flags.flashCardsAvailable,
+          completed: flags.flashCardsDone,
         },
         speaking: {
-          available: speakingAvailable,
-          attempts: speakingSummary.attempts,
-          bestScore: speakingSummary.bestScore,
+          available: flags.speakingAvailable,
+          attempts: flags.speakingSummary.attempts,
+          finished: flags.speakingSummary.finished,
+          bestScore: flags.speakingSummary.bestScore,
         },
         chatbot: {
-          available: chatbotAvailable,
-          conversations: chatbotSummary.total,
-          finishedConversations: chatbotSummary.finished,
+          available: flags.chatbotAvailable,
+          conversations: flags.chatbotSummary.total,
+          finishedConversations: flags.chatbotSummary.finished,
         },
         test: {
-          available: testAvailable,
-          attemptsUsed: testSummary.attemptsUsed,
-          maxAttempts: test?.maxAttempts ?? null,
-          bestScore: testSummary.bestScore,
-          passingScore: test?.passingScore ?? null,
-          passed: testPassed,
+          available: flags.testAvailable,
+          attemptsUsed: flags.testSummary.attemptsUsed,
+          maxAttempts: flags.test?.maxAttempts ?? null,
+          bestScore: flags.testSummary.bestScore,
+          passingScore: flags.test?.passingScore ?? null,
+          passed: flags.testPassed,
         },
       },
       { excludeExtraneousValues: true },

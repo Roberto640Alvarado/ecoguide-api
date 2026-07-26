@@ -1,10 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Exclude, Expose } from 'class-transformer';
+import { Exclude, Expose, Type } from 'class-transformer';
+import { SpeakingTurnResponseDoc } from './speaking-turn-response.doc';
 
 /**
- * Representación pública de un intento de speaking del estudiante. Incluye
- * la retroalimentación y calificación generadas por IA a partir del prompt
- * de evaluación configurado por el docente (SpeakingPractice.prompt).
+ * Representación pública de una llamada de práctica de speaking del
+ * estudiante (multi-turno, ver ChatbotConversationResponseDoc — mismo
+ * patrón). `feedback`/`score` solo se llenan al finalizar (PATCH
+ * .../finish); antes de eso viajan como null.
  */
 @Exclude()
 export class SpeakingResultResponseDoc {
@@ -21,22 +23,23 @@ export class SpeakingResultResponseDoc {
   speakingPracticeId: string;
 
   @Expose()
-  @ApiProperty()
-  audioUrl: string;
+  @Type(() => SpeakingTurnResponseDoc)
+  @ApiProperty({ type: [SpeakingTurnResponseDoc] })
+  turns: SpeakingTurnResponseDoc[];
 
   @Expose()
   @ApiProperty()
-  transcription: string;
+  startedAt: Date;
 
   @Expose()
-  @ApiProperty()
-  feedback: string;
+  @ApiProperty({ nullable: true })
+  endedAt: Date | null;
 
   @Expose()
-  @ApiProperty({ description: 'Calificación del 1 al 10.' })
-  score: number;
+  @ApiProperty({ nullable: true })
+  feedback: string | null;
 
   @Expose()
-  @ApiProperty()
-  createdAt: Date;
+  @ApiProperty({ nullable: true, description: 'Calificación del 1 al 10.' })
+  score: number | null;
 }

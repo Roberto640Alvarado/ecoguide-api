@@ -21,6 +21,8 @@ import { User } from '../../common/decorators/user.decorator';
 import type { AuthenticatedUser } from '../../common/interfaces/jwt-payload.interface';
 import { StudentProgressService } from '../services/student-progress.service';
 import { StudentAreaProgressDoc } from '../doc/student-area-progress-response.doc';
+import { BadgeAwardResultDoc } from '../../badges/doc/badge-award-result.doc';
+import { BadgeResponseDoc } from '../../badges/doc/badge-response.doc';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { PaginatedResult } from '../../common/interfaces/paginated-result.interface';
 
@@ -110,6 +112,74 @@ export class StudentProgressController {
     );
 
     return { message: 'Flashcards marcadas como completadas.' };
+  }
+
+  @Get('badges')
+  @ApiOperation({
+    summary:
+      'Lista todas las insignias que el estudiante ya obtuvo, en cualquier área.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Insignias obtenidas correctamente.',
+  })
+  async getAllEarnedBadges(
+    @User('id') studentId: string,
+  ): Promise<{ message: string; data: BadgeResponseDoc[] }> {
+    const data =
+      await this.studentProgressService.getAllEarnedBadges(studentId);
+
+    return { message: 'Insignias obtenidas correctamente.', data };
+  }
+
+  @Get('by-area/:protectedAreaId/badges')
+  @ApiOperation({
+    summary: 'Lista las insignias que el estudiante ya obtuvo en un área.',
+  })
+  @ApiParam({ name: 'protectedAreaId' })
+  @ApiResponse({
+    status: 200,
+    description: 'Insignias obtenidas correctamente.',
+  })
+  @ApiResponse({ status: 404, description: 'Área protegida no encontrada.' })
+  async getEarnedBadges(
+    @Param('protectedAreaId') protectedAreaId: string,
+    @User('id') studentId: string,
+    @User() requester: AuthenticatedUser,
+  ): Promise<{ message: string; data: BadgeResponseDoc[] }> {
+    const data = await this.studentProgressService.getEarnedBadges(
+      protectedAreaId,
+      studentId,
+      requester,
+    );
+
+    return { message: 'Insignias obtenidas correctamente.', data };
+  }
+
+  @Post('by-area/:protectedAreaId/check-badges')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Revisa si el estudiante terminó el recorrido de un área y, de ser así, le otorga sus insignias.',
+  })
+  @ApiParam({ name: 'protectedAreaId' })
+  @ApiResponse({
+    status: 200,
+    description: 'Revisión realizada correctamente.',
+  })
+  @ApiResponse({ status: 404, description: 'Área protegida no encontrada.' })
+  async checkBadges(
+    @Param('protectedAreaId') protectedAreaId: string,
+    @User('id') studentId: string,
+    @User() requester: AuthenticatedUser,
+  ): Promise<{ message: string; data: BadgeAwardResultDoc }> {
+    const data = await this.studentProgressService.checkAndAwardBadges(
+      protectedAreaId,
+      studentId,
+      requester,
+    );
+
+    return { message: 'Revisión realizada correctamente.', data };
   }
 
   @Get('students/:studentId')

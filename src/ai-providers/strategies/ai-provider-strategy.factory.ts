@@ -6,6 +6,7 @@ import { ClaudeStrategy } from './claude.strategy';
 import { OpenAIStrategy } from './openai.strategy';
 import { MistralStrategy } from './mistral.strategy';
 import { DeepSeekStrategy } from './deepseek.strategy';
+import { GroqStrategy } from './groq.strategy';
 
 /**
  * Resuelve la AIProviderStrategy correcta según AIProvider.providerType.
@@ -24,6 +25,7 @@ export class AIProviderStrategyFactory {
     openAIStrategy: OpenAIStrategy,
     mistralStrategy: MistralStrategy,
     deepSeekStrategy: DeepSeekStrategy,
+    groqStrategy: GroqStrategy,
   ) {
     this.strategies = {
       [AIProviderType.GEMINI]: geminiStrategy,
@@ -31,6 +33,7 @@ export class AIProviderStrategyFactory {
       [AIProviderType.OPENAI]: openAIStrategy,
       [AIProviderType.MISTRAL]: mistralStrategy,
       [AIProviderType.DEEPSEEK]: deepSeekStrategy,
+      [AIProviderType.GROQ]: groqStrategy,
     };
   }
 

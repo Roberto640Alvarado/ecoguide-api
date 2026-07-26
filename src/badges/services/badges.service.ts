@@ -10,6 +10,7 @@ import { CreateBadgeDto } from '../dto/create-badge.dto';
 import { UpdateBadgeDto } from '../dto/update-badge.dto';
 import { FindBadgesQueryDto } from '../dto/find-badges-query.dto';
 import { BadgeResponseDoc } from '../doc/badge-response.doc';
+import { BadgeAwardResultDoc } from '../doc/badge-award-result.doc';
 import { BADGE_SORTABLE_FIELDS } from '../types/find-badges-params.type';
 import {
   PaginatedResult,
@@ -26,12 +27,12 @@ const OBJECT_ID_REGEX = /^[a-f\d]{24}$/i;
  * - protectedAreaId debe referenciar un área protegida existente.
  * - La imagen debe ser PNG; la validación de formato ocurre en el endpoint
  *   de subida (upload-files), aquí solo se persiste la URL resultante.
- * - No existen relaciones con onDelete: Cascade que dependan de Badge, por
- *   lo que eliminar una insignia es un hard delete (mismo criterio que
- *   FlashCard).
- * - Este módulo, por ahora, solo se administra desde la vista de maestro:
- *   no existe (todavía) lógica de otorgamiento/visualización para el
- *   estudiante.
+ * - Eliminar una insignia es un hard delete (mismo criterio que FlashCard);
+ *   sí existe onDelete: Cascade desde StudentBadge hacia Badge, así que los
+ *   registros de otorgamiento de una insignia eliminada se limpian solos.
+ * - El otorgamiento automático (ver awardAreaBadgesToStudent) lo dispara
+ *   StudentProgressService cuando el estudiante termina el recorrido de un
+ *   área; este servicio solo persiste el otorgamiento de forma idempotente.
  */
 @Injectable()
 export class BadgesService {
@@ -120,6 +121,85 @@ export class BadgesService {
   async remove(id: string): Promise<void> {
     await this.getBadgeOrThrow(id);
     await this.badgesRepository.remove(id);
+  }
+
+  /** Insignias que un estudiante ya obtuvo para un área específica. */
+  async getEarnedForStudentAndArea(
+    studentId: string,
+    protectedAreaId: string,
+  ): Promise<BadgeResponseDoc[]> {
+    const earned = await this.badgesRepository.findEarnedByStudentAndArea(
+      studentId,
+      protectedAreaId,
+    );
+
+    return earned.map((badge) =>
+      plainToInstance(BadgeResponseDoc, badge, {
+        excludeExtraneousValues: true,
+      }),
+    );
+  }
+
+  /** Todas las insignias que el estudiante ya obtuvo, en cualquier área
+   * (uso: dashboard del estudiante). */
+  async getAllEarnedForStudent(studentId: string): Promise<BadgeResponseDoc[]> {
+    const earned = await this.badgesRepository.findAllByStudent(studentId);
+
+    return earned.map((badge) =>
+      plainToInstance(BadgeResponseDoc, badge, {
+        excludeExtraneousValues: true,
+      }),
+    );
+  }
+
+  /**
+   * Otorga al estudiante todas las insignias configuradas para un área
+   * (normalmente una sola, pero soporta varias) que todavía no tenga.
+   * Idempotente: si ya las tiene todas, `justUnlocked` queda vacío.
+   * Se llama solo cuando StudentProgressService ya determinó que el
+   * estudiante terminó el recorrido — este método no vuelve a validar esa
+   * condición, solo persiste el otorgamiento.
+   */
+  async awardAreaBadgesToStudent(
+    studentId: string,
+    protectedAreaId: string,
+  ): Promise<BadgeAwardResultDoc> {
+    const badges =
+      await this.badgesRepository.findAllRawByArea(protectedAreaId);
+
+    if (badges.length === 0) {
+      return plainToInstance(
+        BadgeAwardResultDoc,
+        { completed: true, justUnlocked: [], earnedBadges: [] },
+        { excludeExtraneousValues: true },
+      );
+    }
+
+    const alreadyEarnedIds = await this.badgesRepository.findEarnedBadgeIds(
+      studentId,
+      badges.map((badge) => badge.id),
+    );
+    const pending = badges.filter((badge) => !alreadyEarnedIds.has(badge.id));
+
+    await Promise.all(
+      pending.map((badge) =>
+        this.badgesRepository.createStudentBadgeIfMissing(
+          studentId,
+          protectedAreaId,
+          badge.id,
+        ),
+      ),
+    );
+
+    return plainToInstance(
+      BadgeAwardResultDoc,
+      {
+        completed: true,
+        justUnlocked: pending,
+        earnedBadges: badges,
+      },
+      { excludeExtraneousValues: true },
+    );
   }
 
   private async getBadgeOrThrow(id: string): Promise<Badge> {

@@ -1,7 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { render } from '@react-email/render';
-import { BrevoClient } from '@getbrevo/brevo';
+import * as nodemailer from 'nodemailer';
+import type { Transporter } from 'nodemailer';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -12,30 +17,35 @@ import {
 const LOGO_PATH = path.join(process.cwd(), 'public', 'logo.png');
 
 /**
- * Envío de correos vía Brevo (API HTTP, SDK oficial @getbrevo/brevo).
- * Configuración leída de variables de entorno (BREVO_API_KEY, MAIL_FROM,
- * MAIL_REPLY_TO).
+ * Envío de correos vía SMTP de Gmail (nodemailer), usando una cuenta de
+ * Gmail normal con una "Contraseña de aplicación" de 16 caracteres (requiere
+ * Verificación en 2 pasos activada en la cuenta) — no la contraseña normal
+ * de la cuenta.
  *
- * El correo de MAIL_FROM debe estar verificado como "sender" en Brevo
- * (Senders, Domains & Dedicated IPs -> Senders -> Add a sender), lo cual
- * solo requiere confirmar un código de 6 dígitos enviado a esa dirección
- * (no requiere verificar un dominio propio por DNS). Una vez verificado,
- * se puede enviar a cualquier destinatario sin restricciones, a diferencia
- * del modo sandbox de Mailgun/Resend.
+ * Configuración leída de variables de entorno: SMTP_HOST, SMTP_PORT,
+ * SMTP_USER, SMTP_PASSWORD, MAIL_FROM, MAIL_REPLY_TO. `SMTP_HOST`/`SMTP_PORT`
+ * tienen default para Gmail (smtp.gmail.com:587) para no repetirlos si no
+ * hace falta.
+ *
+ * MailModule es @Global y se importa de forma eager en AppModule, así que
+ * el transporte NO se construye en el constructor con `getOrThrow` (eso
+ * tumbaría todo el backend al arrancar si las credenciales SMTP aún no
+ * están configuradas) — se crea de forma perezosa la primera vez que se
+ * necesita enviar un correo (mismo patrón que TranslationService con
+ * DEEPL_API_KEY).
+ *
+ * ⚠️ Límite de Gmail: las cuentas gratuitas permiten hasta 500 correos por
+ * día; superar ese límite bloquea la cuenta temporalmente.
  */
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private readonly client: BrevoClient;
   private readonly senderEmail: string;
   private readonly senderName: string;
   private readonly replyToAddress?: string;
+  private transporter: Transporter | null = null;
 
   constructor(private readonly configService: ConfigService) {
-    this.client = new BrevoClient({
-      apiKey: this.configService.getOrThrow<string>('BREVO_API_KEY'),
-    });
-
     const mailFrom = this.configService.get<string>(
       'MAIL_FROM',
       'EcoGuide <ecoguidetraining@gmail.com>',
@@ -44,6 +54,33 @@ export class MailService {
     this.senderName = name;
     this.senderEmail = email;
     this.replyToAddress = this.configService.get<string>('MAIL_REPLY_TO');
+  }
+
+  private getTransporter(): Transporter {
+    if (this.transporter) {
+      return this.transporter;
+    }
+
+    const user = this.configService.get<string>('SMTP_USER');
+    const password = this.configService.get<string>('SMTP_PASSWORD');
+
+    if (!user || !password) {
+      throw new InternalServerErrorException(
+        'El servicio de correo no está configurado todavía.',
+      );
+    }
+
+    const host = this.configService.get<string>('SMTP_HOST', 'smtp.gmail.com');
+    const port = Number(this.configService.get<string>('SMTP_PORT', '587'));
+
+    this.transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: { user, pass: password },
+    });
+
+    return this.transporter;
   }
 
   async sendPasswordResetCode(
@@ -56,14 +93,12 @@ export class MailService {
     const html = await render(PasswordResetEmail({ ...data, logoSrc }));
 
     try {
-      await this.client.transactionalEmails.sendTransacEmail({
-        sender: { email: this.senderEmail, name: this.senderName },
-        to: [{ email: to }],
-        ...(this.replyToAddress && {
-          replyTo: { email: this.replyToAddress },
-        }),
+      await this.getTransporter().sendMail({
+        from: `"${this.senderName}" <${this.senderEmail}>`,
+        to,
+        ...(this.replyToAddress && { replyTo: this.replyToAddress }),
         subject: 'Recuperación de contraseña - EcoGuide',
-        htmlContent: html,
+        html,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -76,9 +111,9 @@ export class MailService {
 }
 
 /**
- * Convierte "Nombre <correo@dominio.com>" (formato usado por Nodemailer/
- * SMTP en MAIL_FROM) al par {name, email} que espera el `sender` de Brevo.
- * Si MAIL_FROM es solo un correo sin nombre, se usa "EcoGuide" por defecto.
+ * Convierte "Nombre <correo@dominio.com>" (formato de MAIL_FROM) al par
+ * {name, email} que espera el header `from` de nodemailer. Si MAIL_FROM es
+ * solo un correo sin nombre, se usa "EcoGuide" por defecto.
  */
 function parseFromAddress(mailFrom: string): { name: string; email: string } {
   const match = /^(.*?)<(.+)>$/.exec(mailFrom.trim());

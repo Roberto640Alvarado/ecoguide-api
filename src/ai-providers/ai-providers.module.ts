@@ -10,6 +10,7 @@ import { ClaudeStrategy } from './strategies/claude.strategy';
 import { OpenAIStrategy } from './strategies/openai.strategy';
 import { MistralStrategy } from './strategies/mistral.strategy';
 import { DeepSeekStrategy } from './strategies/deepseek.strategy';
+import { GroqStrategy } from './strategies/groq.strategy';
 
 @Module({
   controllers: [AIProvidersController],
@@ -24,6 +25,7 @@ import { DeepSeekStrategy } from './strategies/deepseek.strategy';
     OpenAIStrategy,
     MistralStrategy,
     DeepSeekStrategy,
+    GroqStrategy,
   ],
   // AICompletionService es lo que importarán ChatbotModule y
   // SpeakingPracticesModule cuando se construyan (ver CLAUDE.md, sección

@@ -1,5 +1,6 @@
 export interface SpeakingSummary {
   attempts: number;
+  finished: number;
   bestScore: number | null;
 }
 

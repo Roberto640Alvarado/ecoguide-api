@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AIProvider, Prisma } from '@prisma/client';
+import { AIProvider, AIProviderType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreateAIProviderData,
@@ -27,6 +27,21 @@ export class AIProvidersRepository {
 
   findByProviderName(providerName: string): Promise<AIProvider | null> {
     return this.prisma.aIProvider.findUnique({ where: { providerName } });
+  }
+
+  /**
+   * Primer proveedor activo de un tipo dado, sin importar cuál AIProvider
+   * concreto haya elegido el docente para las respuestas conversacionales.
+   * Usado por GroqTranscriptionService: la transcripción de audio (Whisper)
+   * siempre se hace vía Groq, independientemente del proveedor configurado
+   * en la SpeakingPractice para generar las respuestas de la IA.
+   */
+  findFirstActiveByType(
+    providerType: AIProviderType,
+  ): Promise<AIProvider | null> {
+    return this.prisma.aIProvider.findFirst({
+      where: { providerType, isActive: true },
+    });
   }
 
   create(data: CreateAIProviderData): Promise<AIProvider> {

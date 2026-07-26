@@ -43,6 +43,7 @@ enum AIProviderType {
   OPENAI
   MISTRAL
   DEEPSEEK
+  GROQ
 }
 
 // ============================================
@@ -68,6 +69,7 @@ model User {
   chatbotConversations  ChatbotConversation[]
   protectedAreasCreated ProtectedArea[] @relation("CreatedBy")
   passwordResetCodes    PasswordResetCode[]
+  studentBadges         StudentBadge[]
 
   @@map("users")
 }
@@ -99,6 +101,7 @@ model ProtectedArea {
   chatbotConversations   ChatbotConversation[]
   studentTests           StudentTest[]
   badges                 Badge[]
+  studentBadges          StudentBadge[]
 
   @@map("protected_areas")
 }
@@ -146,8 +149,29 @@ model Badge {
 
   // Relaciones
   protectedArea     ProtectedArea @relation(fields: [protectedAreaId], references: [id], onDelete: Cascade)
+  studentBadges     StudentBadge[]
 
   @@map("badges")
+}
+
+// Registro de que un estudiante obtuvo una insignia (otorgamiento
+// automático al terminar el recorrido de un área, ver
+// StudentProgressService.checkAndAwardBadges). Único por
+// [studentId, badgeId]: otorgar de nuevo es un no-op idempotente.
+model StudentBadge {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  studentId         String   @db.ObjectId
+  protectedAreaId   String   @db.ObjectId
+  badgeId           String   @db.ObjectId
+  earnedAt          DateTime @default(now())
+
+  // Relaciones
+  student           User          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  protectedArea     ProtectedArea @relation(fields: [protectedAreaId], references: [id], onDelete: Cascade)
+  badge             Badge         @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, badgeId])
+  @@map("student_badges")
 }
 
 // ============================================
@@ -263,15 +287,21 @@ model StudentProgress {
 // ============================================
 
 model SpeakingResult {
-  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
-  studentId           String   @db.ObjectId
-  protectedAreaId     String   @db.ObjectId
-  speakingPracticeId  String   @db.ObjectId
-  audioUrl            String
-  transcription       String
-  feedback            String
-  score               Int
-  createdAt           DateTime @default(now())
+  id                  String        @id @default(auto()) @map("_id") @db.ObjectId
+  studentId           String        @db.ObjectId
+  protectedAreaId     String        @db.ObjectId
+  speakingPracticeId  String        @db.ObjectId
+  // Práctica de speaking como llamada multi-turno (ver ChatbotConversation,
+  // mismo patrón): cada turno es un mensaje del estudiante (transcrito por
+  // Whisper/Groq en el backend, ver GroqTranscriptionService) o de la IA. Ya
+  // no se persiste audio (ni por turno ni completo) — solo el texto.
+  turns               SpeakingTurn[]
+  startedAt           DateTime      @default(now())
+  endedAt             DateTime?
+  // feedback/score solo se llenan al finalizar la llamada (PATCH .../finish),
+  // igual que ChatbotConversation.feedback.
+  feedback            String?
+  score               Int?
 
   // Relaciones
   student             User              @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -279,6 +309,13 @@ model SpeakingResult {
   speakingPractice    SpeakingPractice  @relation(fields: [speakingPracticeId], references: [id], onDelete: Cascade)
 
   @@map("speaking_results")
+}
+
+type SpeakingTurn {
+  id        String
+  role      String // "assistant" | "user"
+  message   String
+  createdAt DateTime
 }
 
 // ============================================
@@ -361,6 +398,29 @@ type Model {
   name      String
   model     String
   isActive  Boolean @default(true)
+}
+
+// ============================================
+// TRANSLATION CACHE
+// ============================================
+
+// Cachea traducciones de texto dinámico (contenido escrito por el docente,
+// o generado por IA) para no volver a llamar a DeepL con el mismo texto.
+// sourceHash = sha256(texto original normalizado); no se indexa el texto en
+// sí porque puede ser largo (ej. descripción de un área). Solo se traduce
+// hacia inglés por ahora (el contenido siempre se asume escrito en español),
+// pero targetLanguage queda genérico por si en el futuro se agregan más
+// idiomas.
+model TranslationCache {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  sourceHash     String
+  targetLanguage String
+  sourceText     String
+  translatedText String
+  createdAt      DateTime @default(now())
+
+  @@unique([sourceHash, targetLanguage])
+  @@map("translation_cache")
 }
 
 // ============================================

@@ -23,8 +23,12 @@ export class SpeakingProgressDoc {
   available: boolean;
 
   @Expose()
-  @ApiProperty()
+  @ApiProperty({ description: 'Llamadas de speaking iniciadas.' })
   attempts: number;
+
+  @Expose()
+  @ApiProperty({ description: 'Llamadas de speaking finalizadas.' })
+  finished: number;
 
   @Expose()
   @ApiProperty({ nullable: true })
