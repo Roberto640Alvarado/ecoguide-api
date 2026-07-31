@@ -21,15 +21,6 @@ import { PaginatedResult } from '../../common/interfaces/paginated-result.interf
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { FindProtectedAreasQueryDto } from '../../protected-areas/dto/find-protected-areas-query.dto';
 
-/**
- * Nota mínima (sobre el total de 10 de un examen) para que el intento
- * cuente como "aprobado" a efectos de otorgar la insignia del área — fija,
- * independiente del `passingScore` que el docente configuró en el Test (ese
- * campo solo determina el indicador de "examen aprobado" que ve el propio
- * estudiante/docente en el avance, no el desbloqueo de la insignia).
- */
-const BADGE_MIN_TEST_SCORE = 6;
-
 interface AreaProgressFlags {
   flashCardsAvailable: boolean;
   speakingAvailable: boolean;
@@ -200,12 +191,16 @@ export class StudentProgressService {
 
   /**
    * Revisa si el estudiante ya terminó el recorrido completo de un área
-   * (todos los pasos configurados hechos, examen con nota >= 6/10 si el
+   * (todos los pasos configurados hechos, examen aprobado con la nota
+   * mínima que el propio docente configuró en `Test.passingScore` si el
    * área tiene examen) y, de ser así, le otorga las insignias del área que
-   * todavía no tenga (ver BadgesService.awardAreaBadgesToStudent).
+   * todavía no tenga (ver BadgesService.awardAreaBadgesToStudent). No hay
+   * un umbral fijo aparte para la insignia — se usa el mismo `testPassed`
+   * que ve el estudiante/docente en el avance, así ambos indicadores nunca
+   * se desincronizan.
    * Idempotente y seguro de llamar en cada visita a la vista de progreso
-   * del estudiante — solo se dispara el desbloqueo (justUnlocked) la
-   * primera vez que se cumple la condición.
+   * del estudiante (o justo al terminar el examen) — solo se dispara el
+   * desbloqueo (justUnlocked) la primera vez que se cumple la condición.
    */
   async checkAndAwardBadges(
     protectedAreaId: string,
@@ -236,17 +231,12 @@ export class StudentProgressService {
       flags.testAvailable,
     ].filter(Boolean).length;
 
-    const testPassedForBadge =
-      flags.testAvailable &&
-      flags.testSummary.bestScore !== null &&
-      flags.testSummary.bestScore >= BADGE_MIN_TEST_SCORE;
-
     const tourCompleted =
       stepsTotal > 0 &&
       (!flags.flashCardsAvailable || flags.flashCardsDone) &&
       (!flags.speakingAvailable || flags.speakingDone) &&
       (!flags.chatbotAvailable || flags.chatbotDone) &&
-      (!flags.testAvailable || testPassedForBadge);
+      (!flags.testAvailable || flags.testPassed);
 
     if (tourCompleted) {
       return this.badgesService.awardAreaBadgesToStudent(
