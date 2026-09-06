@@ -15,6 +15,11 @@ export interface FindUsersParams {
   limit: number;
   search?: string;
   role?: UserRole;
+  isActive?: boolean;
+  /** yyyy-MM-dd */
+  createdFrom?: string;
+  /** yyyy-MM-dd */
+  createdTo?: string;
   sortField: UserSortableField;
   sortOrder: 'asc' | 'desc';
 }

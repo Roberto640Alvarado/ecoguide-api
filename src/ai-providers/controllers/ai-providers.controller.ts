@@ -54,6 +54,18 @@ export class AIProvidersController {
     description: 'Ej: providerName:asc, createdAt:desc',
   })
   @ApiQuery({ name: 'isActive', required: false, type: Boolean })
+  @ApiQuery({
+    name: 'createdFrom',
+    required: false,
+    type: String,
+    description: 'yyyy-MM-dd',
+  })
+  @ApiQuery({
+    name: 'createdTo',
+    required: false,
+    type: String,
+    description: 'yyyy-MM-dd',
+  })
   @ApiResponse({ status: 200, description: 'Listado paginado de proveedores.' })
   async findAll(@Query() query: FindAIProvidersQueryDto): Promise<{
     message: string;

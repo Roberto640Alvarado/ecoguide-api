@@ -48,6 +48,19 @@ export class UsersController {
     description: 'Ej: name:asc, createdAt:desc',
   })
   @ApiQuery({ name: 'role', required: false, enum: UserRole })
+  @ApiQuery({ name: 'isActive', required: false, type: Boolean })
+  @ApiQuery({
+    name: 'createdFrom',
+    required: false,
+    type: String,
+    description: 'yyyy-MM-dd',
+  })
+  @ApiQuery({
+    name: 'createdTo',
+    required: false,
+    type: String,
+    description: 'yyyy-MM-dd',
+  })
   @ApiResponse({ status: 200, description: 'Listado paginado de usuarios.' })
   async findAll(
     @Query() query: FindUsersQueryDto,

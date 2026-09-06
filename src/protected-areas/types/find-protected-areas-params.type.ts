@@ -12,6 +12,10 @@ export interface FindProtectedAreasParams {
   limit: number;
   search?: string;
   isPublished?: boolean;
+  /** yyyy-MM-dd */
+  createdFrom?: string;
+  /** yyyy-MM-dd */
+  createdTo?: string;
   sortField: ProtectedAreaSortableField;
   sortOrder: 'asc' | 'desc';
 }

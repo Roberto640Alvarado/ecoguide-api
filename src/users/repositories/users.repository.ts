@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, User } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { buildDateRangeFilter } from '../../common/utils/date-range.util';
 import { CreateUserData } from '../types/create-user.type';
 import {
   FindUsersParams,
@@ -34,10 +35,24 @@ export class UsersRepository {
   async findAll(
     params: FindUsersParams,
   ): Promise<{ items: User[]; total: number }> {
-    const { page, limit, search, role, sortField, sortOrder } = params;
+    const {
+      page,
+      limit,
+      search,
+      role,
+      isActive,
+      createdFrom,
+      createdTo,
+      sortField,
+      sortOrder,
+    } = params;
+
+    const createdAtFilter = buildDateRangeFilter(createdFrom, createdTo);
 
     const where: Prisma.UserWhereInput = {
       ...(role && { role }),
+      ...(isActive !== undefined && { isActive }),
+      ...(createdAtFilter && { createdAt: createdAtFilter }),
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },

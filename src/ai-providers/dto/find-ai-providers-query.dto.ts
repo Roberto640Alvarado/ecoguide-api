@@ -1,12 +1,22 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsBoolean, IsOptional } from 'class-validator';
+import { IsOptional } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import { IsOptionalBoolean } from '../../common/decorators/is-optional-boolean.decorator';
 
 export class FindAIProvidersQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({ description: 'Filtra por estado activo/inactivo.' })
-  @IsOptional()
-  @Type(() => Boolean)
-  @IsBoolean()
+  @IsOptionalBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Fecha de creación mínima (inclusive), formato yyyy-MM-dd.',
+  })
+  @IsOptional()
+  createdFrom?: string;
+
+  @ApiPropertyOptional({
+    description: 'Fecha de creación máxima (inclusive), formato yyyy-MM-dd.',
+  })
+  @IsOptional()
+  createdTo?: string;
 }

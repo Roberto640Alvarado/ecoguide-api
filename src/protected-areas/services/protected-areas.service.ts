@@ -58,6 +58,8 @@ export class ProtectedAreasService {
       limit,
       search: query.search,
       isPublished,
+      createdFrom: query.createdFrom,
+      createdTo: query.createdTo,
       sortField,
       sortOrder,
     });

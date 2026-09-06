@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AIProvider, AIProviderType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { buildDateRangeFilter } from '../../common/utils/date-range.util';
 import {
   CreateAIProviderData,
   FindAIProvidersParams,
@@ -106,10 +107,22 @@ export class AIProvidersRepository {
   async findAll(
     params: FindAIProvidersParams,
   ): Promise<{ items: AIProvider[]; total: number }> {
-    const { page, limit, search, isActive, sortField, sortOrder } = params;
+    const {
+      page,
+      limit,
+      search,
+      isActive,
+      createdFrom,
+      createdTo,
+      sortField,
+      sortOrder,
+    } = params;
+
+    const createdAtFilter = buildDateRangeFilter(createdFrom, createdTo);
 
     const where: Prisma.AIProviderWhereInput = {
       ...(isActive !== undefined && { isActive }),
+      ...(createdAtFilter && { createdAt: createdAtFilter }),
       ...(search && {
         providerName: { contains: search, mode: 'insensitive' },
       }),

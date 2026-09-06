@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, ProtectedArea } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { buildDateRangeFilter } from '../../common/utils/date-range.util';
 import {
   CreateProtectedAreaData,
   FindProtectedAreasParams,
@@ -49,10 +50,22 @@ export class ProtectedAreasRepository {
   async findAll(
     params: FindProtectedAreasParams,
   ): Promise<{ items: ProtectedArea[]; total: number }> {
-    const { page, limit, search, isPublished, sortField, sortOrder } = params;
+    const {
+      page,
+      limit,
+      search,
+      isPublished,
+      createdFrom,
+      createdTo,
+      sortField,
+      sortOrder,
+    } = params;
+
+    const createdAtFilter = buildDateRangeFilter(createdFrom, createdTo);
 
     const where: Prisma.ProtectedAreaWhereInput = {
       ...(isPublished !== undefined && { isPublished }),
+      ...(createdAtFilter && { createdAt: createdAtFilter }),
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },

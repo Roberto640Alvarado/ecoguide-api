@@ -13,6 +13,10 @@ export interface FindAIProvidersParams {
   limit: number;
   search?: string;
   isActive?: boolean;
+  /** yyyy-MM-dd */
+  createdFrom?: string;
+  /** yyyy-MM-dd */
+  createdTo?: string;
   sortField: AIProviderSortableField;
   sortOrder: 'asc' | 'desc';
 }

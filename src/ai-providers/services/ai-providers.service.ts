@@ -60,6 +60,8 @@ export class AIProvidersService {
       limit,
       search: query.search,
       isActive: query.isActive,
+      createdFrom: query.createdFrom,
+      createdTo: query.createdTo,
       sortField,
       sortOrder,
     });

@@ -85,6 +85,9 @@ export class UsersService {
       limit,
       search: query.search,
       role: query.role,
+      isActive: query.isActive,
+      createdFrom: query.createdFrom,
+      createdTo: query.createdTo,
       sortField,
       sortOrder,
     });
