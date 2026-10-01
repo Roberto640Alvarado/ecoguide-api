@@ -197,23 +197,40 @@ export class AIProvidersService {
   }
 
   /**
-   * Descifra el apiKey del primer proveedor activo de un tipo dado (ej.
-   * GROQ), sin conocer su id. Uso interno para integraciones que siempre
-   * dependen de un vendor específico sin importar la configuración de
-   * providerId/model de cada SpeakingPractice/ChatbotConfig — hoy solo la
-   * transcripción de audio (Whisper vía Groq, ver GroqTranscriptionService).
+   * Descifra el apiKey del primer proveedor ACTIVO de entre varios tipos,
+   * recorridos en orden de preferencia, y devuelve también cuál tipo se
+   * resolvió — quien llama necesita saberlo para armar la petición (cada
+   * vendor tiene su propia URL y su propio nombre de modelo).
+   *
+   * Devuelve `null` cuando ninguno de los tipos tiene un proveedor activo,
+   * en vez de lanzar: así el módulo que llama decide el mensaje de error de
+   * su dominio, que es mucho más útil para el docente que un error genérico
+   * de "no hay proveedor de tipo X".
+   *
+   * Uso interno para integraciones que NO pasan por AICompletionService
+   * porque su contrato no es de solo texto (ver AIProviderStrategy) — hoy
+   * solo la transcripción de audio de speaking, que funciona con cualquier
+   * vendor compatible con el endpoint `/audio/transcriptions` de OpenAI
+   * (ver AudioTranscriptionService).
    */
-  async getActiveApiKeyByType(providerType: AIProviderType): Promise<string> {
-    const provider =
-      await this.aiProvidersRepository.findFirstActiveByType(providerType);
+  async findActiveApiKeyByTypes<T extends AIProviderType>(
+    providerTypes: readonly T[],
+  ): Promise<{ providerType: T; apiKey: string } | null> {
+    for (const providerType of providerTypes) {
+      const provider =
+        await this.aiProvidersRepository.findFirstActiveByType(providerType);
 
-    if (!provider) {
-      throw new NotFoundException(
-        `No hay un proveedor de IA de tipo "${providerType}" activo configurado.`,
-      );
+      if (provider) {
+        return {
+          providerType,
+          apiKey: this.apiKeyEncryptionService.decrypt(
+            provider.apiKeyEncrypted,
+          ),
+        };
+      }
     }
 
-    return this.apiKeyEncryptionService.decrypt(provider.apiKeyEncrypted);
+    return null;
   }
 
   private toModelData(dto: CreateModelDto) {

@@ -9,7 +9,7 @@ import { randomUUID } from 'crypto';
 import { plainToInstance } from 'class-transformer';
 import { SpeakingResult } from '@prisma/client';
 import { SpeakingResultsRepository } from '../repositories/speaking-results.repository';
-import { GroqTranscriptionService } from './groq-transcription.service';
+import { AudioTranscriptionService } from './audio-transcription.service';
 import { StartSpeakingResultDto } from '../dto/start-speaking-result.dto';
 import { SpeakingResultResponseDoc } from '../doc/speaking-result-response.doc';
 import {
@@ -38,7 +38,7 @@ const DEFAULT_SCORE_ON_PARSE_FAILURE = 5;
  * Contiene toda la lógica de negocio de la práctica de speaking del
  * estudiante: una llamada multi-turno con la IA (mismo patrón que
  * ChatbotConversationsService), donde cada turno del estudiante llega como
- * audio (transcrito vía Groq/Whisper, ver GroqTranscriptionService) y la IA
+ * audio (transcrito vía Whisper, ver AudioTranscriptionService) y la IA
  * responde conversando en inglés según el prompt de evaluación configurado
  * por el docente (SpeakingPractice.prompt). Al finalizar la llamada se
  * genera retroalimentación + calificación sobre toda la conversación.
@@ -52,7 +52,7 @@ export class SpeakingResultsService {
 
   constructor(
     private readonly speakingResultsRepository: SpeakingResultsRepository,
-    private readonly groqTranscriptionService: GroqTranscriptionService,
+    private readonly audioTranscriptionService: AudioTranscriptionService,
     private readonly protectedAreasService: ProtectedAreasService,
     private readonly speakingPracticesService: SpeakingPracticesService,
     private readonly aiCompletionService: AICompletionService,
@@ -130,7 +130,7 @@ export class SpeakingResultsService {
       requester,
     );
 
-    const transcription = await this.groqTranscriptionService.transcribe(
+    const transcription = await this.audioTranscriptionService.transcribe(
       audioBuffer,
       audioFilename,
       audioMimeType,

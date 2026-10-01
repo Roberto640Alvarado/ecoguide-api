@@ -33,9 +33,10 @@ export class AIProvidersRepository {
   /**
    * Primer proveedor activo de un tipo dado, sin importar cuál AIProvider
    * concreto haya elegido el docente para las respuestas conversacionales.
-   * Usado por GroqTranscriptionService: la transcripción de audio (Whisper)
-   * siempre se hace vía Groq, independientemente del proveedor configurado
-   * en la SpeakingPractice para generar las respuestas de la IA.
+   * Usado por AudioTranscriptionService: la transcripción de audio se hace
+   * con el primer vendor compatible que esté activo (Groq u OpenAI),
+   * independientemente del proveedor configurado en la SpeakingPractice
+   * para generar las respuestas conversacionales.
    */
   findFirstActiveByType(
     providerType: AIProviderType,

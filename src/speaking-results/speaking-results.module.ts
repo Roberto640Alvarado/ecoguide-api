@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { SpeakingResultsService } from './services/speaking-results.service';
-import { GroqTranscriptionService } from './services/groq-transcription.service';
+import { AudioTranscriptionService } from './services/audio-transcription.service';
 import { EdgeTtsService } from './services/edge-tts.service';
 import { SpeakingResultsRepository } from './repositories/speaking-results.repository';
 import { SpeakingResultsController } from './controllers/speaking-results.controller';
@@ -13,7 +13,7 @@ import { AIProvidersModule } from '../ai-providers/ai-providers.module';
   controllers: [SpeakingResultsController],
   providers: [
     SpeakingResultsService,
-    GroqTranscriptionService,
+    AudioTranscriptionService,
     EdgeTtsService,
     SpeakingResultsRepository,
   ],
