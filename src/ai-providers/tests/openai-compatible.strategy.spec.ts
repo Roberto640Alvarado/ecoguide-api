@@ -6,8 +6,12 @@ import { DeepSeekStrategy } from '../strategies/deepseek.strategy';
 /**
  * OpenAIStrategy, MistralStrategy y DeepSeekStrategy comparten toda su
  * lógica vía OpenAICompatibleStrategy (solo difieren en baseUrl), así que
- * probar el request/response con una alcanza para las tres; el segundo test
+ * probar el request/response con una alcanza para las tres; el tercer test
  * confirma que efectivamente pegan a baseUrls distintas.
+ *
+ * Los dos tests de modelos de razonamiento cubren lo propio de
+ * OpenAIStrategy: esos modelos rechazan `temperature` y `max_tokens`, así
+ * que el cuerpo del request se arma distinto.
  */
 describe('OpenAICompatibleStrategy (vía OpenAIStrategy)', () => {
   let strategy: OpenAIStrategy;
@@ -65,6 +69,50 @@ describe('OpenAICompatibleStrategy (vía OpenAIStrategy)', () => {
       completionTokens: 4,
       totalTokens: 14,
     });
+  });
+
+  it('en modelos de razonamiento omite temperature y manda max_completion_tokens con presupuesto para el razonamiento', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => ({ choices: [{ message: { content: 'ok' } }] }),
+    });
+
+    await strategy.complete({
+      apiKey: 'sk-openai',
+      model: 'gpt-6.1-sol',
+      messages: [{ role: 'user', content: 'Hola' }],
+      temperature: 0.6,
+      maxTokens: 300,
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.temperature).toBeUndefined();
+    expect(body.max_tokens).toBeUndefined();
+    // 300 para la respuesta visible + el presupuesto de razonamiento.
+    expect(body.max_completion_tokens).toBe(2300);
+    expect(body.reasoning_effort).toBe('low');
+  });
+
+  it('trata las variantes -chat como modelos normales', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => ({ choices: [{ message: { content: 'ok' } }] }),
+    });
+
+    await strategy.complete({
+      apiKey: 'sk-openai',
+      model: 'gpt-5-chat-latest',
+      messages: [{ role: 'user', content: 'Hola' }],
+      temperature: 0.6,
+      maxTokens: 300,
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.temperature).toBe(0.6);
+    expect(body.max_tokens).toBe(300);
+    expect(body.max_completion_tokens).toBeUndefined();
   });
 
   it('lanza InternalServerErrorException si el proveedor responde con error', async () => {

@@ -21,11 +21,12 @@ interface OpenAICompatibleResponseBody {
 
 /**
  * Base compartida para los proveedores que exponen una API compatible con
- * el formato "chat completions" de OpenAI: el propio OpenAI, Mistral y
- * DeepSeek. Los tres difieren únicamente en la baseUrl — el request y la
- * respuesta son idénticos — así que esta clase concentra esa lógica común
- * (DRY) y cada vendor solo aporta su URL vía un subclase concreta
- * (OpenAIStrategy, MistralStrategy, DeepSeekStrategy).
+ * el formato "chat completions" de OpenAI: el propio OpenAI, Groq, Mistral
+ * y DeepSeek. Normalmente difieren únicamente en la baseUrl — el request y
+ * la respuesta son idénticos — así que esta clase concentra esa lógica
+ * común (DRY) y cada vendor solo aporta su URL vía una subclase concreta.
+ * Cuando un vendor necesita además ajustar el cuerpo del request (caso de
+ * OpenAI con sus modelos de razonamiento), sobrescribe `buildRequestBody`.
  *
  * No se registra como @Injectable por sí misma porque nunca se instancia
  * directamente (es abstracta); son las subclases las que NestJS instancia e
@@ -37,6 +38,28 @@ export abstract class OpenAICompatibleStrategy implements AIProviderStrategy {
 
   protected constructor(private readonly baseUrl: string) {}
 
+  /**
+   * Cuerpo del request en el formato clásico de chat/completions. Es un
+   * método aparte (y protegido) para que un vendor con reglas propias pueda
+   * ajustarlo sin reimplementar toda la llamada: hoy lo sobrescribe
+   * OpenAIStrategy para sus modelos de razonamiento, que rechazan
+   * `temperature` y `max_tokens`.
+   */
+  protected buildRequestBody(
+    params: AICompletionParams,
+  ): Record<string, unknown> {
+    return {
+      model: params.model,
+      messages: params.messages,
+      ...(params.temperature !== undefined && {
+        temperature: params.temperature,
+      }),
+      ...(params.maxTokens !== undefined && {
+        max_tokens: params.maxTokens,
+      }),
+    };
+  }
+
   async complete(params: AICompletionParams): Promise<AICompletionResult> {
     try {
       const response = await fetchWithTimeout(
@@ -47,16 +70,7 @@ export abstract class OpenAICompatibleStrategy implements AIProviderStrategy {
             Authorization: `Bearer ${params.apiKey}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            model: params.model,
-            messages: params.messages,
-            ...(params.temperature !== undefined && {
-              temperature: params.temperature,
-            }),
-            ...(params.maxTokens !== undefined && {
-              max_tokens: params.maxTokens,
-            }),
-          }),
+          body: JSON.stringify(this.buildRequestBody(params)),
         },
       );
 
